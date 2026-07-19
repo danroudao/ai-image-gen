@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ImageDown, Loader2, AlertCircle, MoreHorizontal, FileText, ImagePlus, Download, Check } from 'lucide-react'
+import { ImageDown, AlertCircle, MoreHorizontal, FileText, ImagePlus, Download, Check, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Lightbox } from './Lightbox'
 
@@ -23,13 +23,10 @@ function copyToClipboard(text: string) {
 interface ImageDisplayAreaProps {
   images: string[]
   isGenerating: boolean
-  progress: number
   error: string | null
   cost: number | null
   params: { size: string; resolution: string } | null
   prompt: string
-  totalTasks: number
-  completedTasks: number
   onReusePrompt: (prompt: string) => void
   onUseAsRef: (url: string) => Promise<void>
 }
@@ -106,13 +103,10 @@ function ImageMenu({ url, prompt, onReusePrompt, onUseAsRef, onClose }: {
 export function ImageDisplayArea({
   images,
   isGenerating,
-  progress,
   error,
   cost,
   params,
   prompt,
-  totalTasks,
-  completedTasks,
   onReusePrompt,
   onUseAsRef,
 }: ImageDisplayAreaProps) {
@@ -127,52 +121,6 @@ export function ImageDisplayArea({
   }, [copied])
 
   const renderContent = () => {
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-          <AlertCircle className="h-12 w-12 text-destructive" />
-          <p className="text-destructive font-medium">生成失败</p>
-          <p className="text-sm max-w-md text-center">{error}</p>
-        </div>
-      )
-    }
-
-    if (isGenerating) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">
-            {totalTasks > 1
-              ? `正在生成... (${completedTasks}/${totalTasks})`
-              : '正在生成中...'}
-          </p>
-          {totalTasks > 1 && (
-            <div className="flex gap-1">
-              {Array.from({ length: totalTasks }, (_, i) => (
-                <div
-                  key={i}
-                  className={`w-6 h-1.5 rounded-full transition-colors ${
-                    i < completedTasks ? 'bg-primary' : i === completedTasks ? 'bg-primary/50 animate-pulse' : 'bg-muted'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-          {totalTasks <= 1 && (
-            <div className="w-64 bg-secondary rounded-full h-2 overflow-hidden">
-              <div
-                className="bg-gradient-to-r from-primary/70 to-primary h-full transition-all duration-500 rounded-full"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          )}
-          {totalTasks <= 1 && (
-            <span className="text-sm text-muted-foreground">{progress}%</span>
-          )}
-        </div>
-      )
-    }
-
     if (images.length > 0) {
       const singleCol = images.length === 1
       return (
@@ -246,6 +194,25 @@ export function ImageDisplayArea({
               </button>
             )}
           </div>
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+          <AlertCircle className="h-12 w-12 text-destructive" />
+          <p className="text-destructive font-medium">生成失败</p>
+          <p className="text-sm max-w-md text-center">{error}</p>
+        </div>
+      )
+    }
+
+    if (isGenerating) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">正在生成...</p>
         </div>
       )
     }

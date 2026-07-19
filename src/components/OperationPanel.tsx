@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Loader2, Check, ChevronDown } from 'lucide-react'
+import { Sparkles, Check, ChevronDown } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { ImageUploader } from './ImageUploader'
 import { AspectRatio, Resolution, GenerationParams } from '@/lib/types'
@@ -30,10 +30,10 @@ const RESOLUTIONS: Resolution[] = ['1k', '2k', '4k']
 
 interface OperationPanelProps {
   onGenerate: (params: GenerationParams) => void
-  isGenerating: boolean
+  isGenerating?: boolean
 }
 
-export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps) {
+export function OperationPanel({ onGenerate }: OperationPanelProps) {
   const { prompt, setPrompt, refImages, setRefImages } = useFormStore()
   const [size, setSize] = useState<string>('1:1')
   const [resolution, setResolution] = useState<Resolution>('1k')
@@ -52,7 +52,7 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
   }, [])
 
   const handleGenerate = () => {
-    if (!prompt.trim() || isGenerating) return
+    if (!prompt.trim()) return
     const params: GenerationParams = {
       model: 'gpt-image-2',
       prompt: prompt.trim(),
@@ -70,7 +70,7 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
     <Card className="h-full">
       <CardContent className="p-4 space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">图片比例</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">图片比例</label>
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
@@ -103,7 +103,7 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">分辨率</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">分辨率</label>
           <div className="flex gap-2">
             {RESOLUTIONS.map((r) => (
               <button
@@ -123,8 +123,8 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">
-            并行任务数: {count}
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            图片数量: {count}
           </label>
           <input
             type="range"
@@ -147,7 +147,7 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
         />
 
         <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="prompt-input">描述词</label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="prompt-input">描述词</label>
           <textarea
             id="prompt-input"
             placeholder="描述你想要的画面，支持中英文，越详细效果越好..."
@@ -161,24 +161,15 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
         <button
           type="button"
           className={`w-full h-9 rounded-lg text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer ${
-            !prompt.trim() || isGenerating
+            !prompt.trim()
               ? 'bg-primary/50 text-primary-foreground/50 pointer-events-none'
-              : 'bg-primary text-primary-foreground hover:bg-primary/80'
+              : 'bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 shadow-sm'
           }`}
           onClick={handleGenerate}
-          disabled={!prompt.trim() || isGenerating}
+          disabled={!prompt.trim()}
         >
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              生成中...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              {count > 1 ? `并行生成 ${count} 张` : '生成图片'}
-            </>
-          )}
+          <Sparkles className="h-4 w-4" />
+          {count > 1 ? `生成 ${count} 张` : '生成图片'}
         </button>
       </CardContent>
     </Card>

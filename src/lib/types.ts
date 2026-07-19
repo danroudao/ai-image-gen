@@ -74,6 +74,19 @@ export interface HistoryEntry {
   created_at: number
 }
 
+export interface TaskItem {
+  id: string
+  taskId: string
+  prompt: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  progress: number
+  images: string[]
+  cost: number
+  size: string
+  resolution: string
+  createdAt: number
+}
+
 export interface GenerationState {
   isGenerating: boolean
   taskId: string | null
@@ -82,6 +95,6 @@ export interface GenerationState {
   images: string[]
   error: string | null
   cost: number | null
-  totalTasks: number
-  completedTasks: number
+  viewingHistory: boolean
+  tasks: TaskItem[]
 }
