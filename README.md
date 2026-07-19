@@ -9,18 +9,22 @@
 - **多种比例** - 支持 15 种图片比例 + 自动模式
 - **分辨率选择** - 1K / 2K / 4K 三档可选
 - **并行生成** - 单次最多并行 10 个独立任务，完成一个展示一个
-- **图片快捷菜单** - 点击图片可复用提示词、作为参考图、下载
-- **生成本地存储** - 本地保存最近 10 条历史记录
+- **图片预览** - 点击图片全屏灯箱预览，支持复用提示词 / 作为参考图 / 下载
+- **图片删除** - 图片网格支持单张删除（桌面 hover 显示，移动端常驻显示）
+- **操作反馈** - 右下角 Toast 通知（生成成功/失败/删除/复制等）
+- **历史记录** - 本地保存最近 10 条记录，选中高亮，支持单条删除
 - **图片缓存** - 服务端自动缓存生成图片（最多 50 张，超限自动清理）
-- **暗色模式** - 支持亮色 / 暗色 / 跟随系统
+- **暗色模式** - 支持亮色 / 暗色 / 跟随系统，持久化选择
+- **移动端适配** - 自动响应式布局
 
 ## 技术栈
 
 - **框架**: Next.js 16 (App Router)
 - **语言**: TypeScript
 - **样式**: TailwindCSS v4 + shadcn/ui
-- **状态管理**: Zustand
+- **状态管理**: Zustand（含 persist 中间件）
 - **图片存储**: 本地文件系统 (public/generated)
+- **API 校验**: Zod
 
 ## 快速开始
 
@@ -29,13 +33,15 @@
 npm install
 
 # 配置 API Key
-# 复制 .env.local 文件，填入你的 API Key
+# 复制 .env.local.example 为 .env.local，填入你的 API Key
 # 获取地址：https://apib.ai
-# .env.local 内容：
 # APIB_API_KEY=你的密钥
 
-# 启动开发服务器
-npm run dev
+# 构建生产版本
+npm run build
+
+# 启动服务
+npm run start
 ```
 
 打开 http://localhost:3000 即可使用。
@@ -45,29 +51,89 @@ npm run dev
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # 根布局
+│   ├── layout.tsx              # 根布局（含 Toast 容器）
 │   ├── page.tsx                # 主页面
-│   ├── globals.css             # 全局样式
+│   ├── globals.css             # 全局样式（渐变背景、暗色变量）
 │   └── api/
-│       ├── generate/route.ts   # POST - 提交生成任务
+│       ├── generate/route.ts   # POST - 提交生成任务（zod 校验）
 │       └── tasks/[taskId]/route.ts  # GET - 查询任务状态
 ├── components/
 │   ├── Header.tsx              # 顶栏 + 暗色模式切换
 │   ├── OperationPanel.tsx      # 操作面板（比例/分辨率/数量/参考图/提示词）
-│   ├── ImageDisplayArea.tsx    # 图片展示区（含图片快捷菜单）
-│   ├── HistoryBar.tsx          # 历史记录栏
+│   ├── ImageDisplayArea.tsx    # 图片展示区（含悬停删除按钮）
+│   ├── HistoryBar.tsx          # 历史记录栏（选中高亮、单条删除）
 │   ├── ImageUploader.tsx       # 图片上传组件
-│   ├── Lightbox.tsx            # 图片灯箱预览（含快捷操作）
+│   ├── Lightbox.tsx            # 图片灯箱预览（复用提示词/作为参考图/下载）
+│   ├── Toast.tsx               # Toast 通知组件
 │   ├── ErrorBoundary.tsx       # 错误边界
 │   └── ThemeProvider.tsx       # 主题切换
 ├── stores/
-│   ├── generation-store.ts     # 生成状态（含并行任务计数）
+│   ├── generation-store.ts     # 生成状态（含并行任务）
 │   ├── form-store.ts           # 表单状态（提示词/参考图）
 │   ├── history-store.ts        # 历史记录 (localStorage)
-│   └── settings-store.ts       # 主题设置
+│   ├── toast-store.ts          # Toast 通知状态
+│   └── settings-store.ts       # 主题设置（持久化）
 └── lib/
     ├── types.ts                # 类型定义
     └── api.ts                  # API 客户端封装
+```
+
+## 部署与运维
+
+### 使用 systemd 服务（推荐）
+
+创建系统服务，实现开机自启、崩溃自动重启。
+
+```ini
+# /etc/systemd/system/ai-image-gen.service
+[Unit]
+Description=AI Image Generator (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=你的用户名
+WorkingDirectory=/path/to/ai-image-gen
+ExecStart=/usr/bin/npm run start -- -H 0.0.0.0
+Restart=always
+RestartSec=5
+Environment=APIB_API_KEY=你的密钥
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# 重新加载 systemd
+sudo systemctl daemon-reload
+
+# 启动服务
+sudo systemctl start ai-image-gen
+
+# 设置开机自启
+sudo systemctl enable ai-image-gen
+
+# 查看运行状态
+systemctl status ai-image-gen
+
+# 实时查看日志
+journalctl -u ai-image-gen -f
+
+# 停止服务
+sudo systemctl stop ai-image-gen
+
+# 重启服务
+sudo systemctl restart ai-image-gen
+```
+
+### 更新部署
+
+```bash
+git pull
+npm install
+npm run build
+sudo systemctl restart ai-image-gen
 ```
 
 ## API 对接
@@ -96,12 +162,12 @@ Body:
 GET /api/tasks/{taskId}
 ```
 
-## 构建部署
+## 安全注意事项
 
-```bash
-npm run build
-# 产物在 .next/ 目录
-```
+- **API Key** 存储在 `.env.local`，该文件已在 `.gitignore` 中排除，不会进入版本控制
+- 生成图片存储在 `public/generated/`，该目录已在 `.gitignore` 中排除，不会被推送到远程仓库
+- 生产环境部署前建议添加用户认证与速率限制
+- 建议定期轮换 API Key（在 [apib.ai](https://apib.ai) 后台重新生成）
 
 ## License
 

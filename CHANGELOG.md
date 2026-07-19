@@ -1,5 +1,37 @@
 # 更新日志
 
+## v0.3.0 (2026-07-19)
+
+### 新增
+- 图片单个删除（桌面 hover 显示，移动端常驻显示）
+- Toast 操作反馈（生成成功/失败/删除/复用提示词/添加参考图）
+- 历史记录选中高亮（蓝色 ring 指示当前浏览的条目）
+- 移动端响应式布局（flex-col 堆叠 + 全页滚动）
+- 灯箱快捷操作移动端适配（缩紧字号间距但不换行）
+
+### 优化
+- 主题设置持久化至 localStorage（zustand persist 中间件）
+- 全端统一视觉：所有 Card/Header 使用半透明毛玻璃背景，全局径向渐变透出
+- 删除按钮桌面 hover 显示、移动端常驻可见
+- Header 移动端紧凑样式
+- 操作面板标题标签统一大写字母间距样式
+
+### 修复
+- 移动端页面超出视口不可滚动（添加 overflow-y-auto 容器）
+- 浏览历史后空状态无法重置（setViewingHistory + setSelectedHistoryId）
+- 灯箱按钮在窄屏换行溢出
+- 清理 @base-ui/react 残留依赖
+- 任务路由 crypto.randomUUID 改为 uuid v4 保持全项目一致
+
+### 技术债务
+- 引入 zod 对 /api/generate 做入参校验（model/prompt/n/size/resolution）
+- shadcn 从 dependencies 移至 devDependencies
+- 替换两处 eslint-disable 坏味道（解构省略 → 显式 pick；useEffect mounted → useSyncExternalStore）
+
+### 安全
+- 生成的 PNG 图片移出版本控制，加入 .gitignore
+- 保留 public/generated/.gitkeep 确保目录存在
+
 ## v0.2.0 (2026-07-19)
 
 ### 新增
