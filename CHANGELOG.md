@@ -1,5 +1,32 @@
 # 更新日志
 
+## v0.4.0 (2026-07-20) — 数据库基础设施
+
+### 新增
+- **Prisma + SQLite 数据库**：User、Image、GenerationTask、HistoryEntry、Quota 五表
+- **NextAuth.js v5 认证框架**：Credentials 邮箱密码登录，JWT Session，预留后续升级
+- **私有图片存储**：图片从 `public/generated/` 迁移到 `private/uploads/`，通过 `/api/images/[id]` 鉴权后访问
+- **图片 API 服务**：`GET /api/images`（列表）、`GET /api/images/[id]`（文件）、`GET /api/images/[id]/thumbnail`（缩略图）
+- **历史记录 API**：`GET/POST /api/history`、`DELETE /api/history/[id]`，替代 localStorage
+- **种子脚本**：`POST /api/auth/seed` 初始化管理员账号（admin@ai-image.local / admin123456）
+- **auth-utils**：标准化 API 错误响应工具函数
+
+### 优化
+- 生成/任务路由接入数据库记录（`GenerationTask` + `Image`）
+- 历史记录加载从 localStorage 迁移到 DB API
+- `HistoryBar` 支持 `imageIds` 和 `localImages` 双模式兼容
+
+### 架构
+- 新增 `src/lib/prisma.ts` — Prisma Client 单例
+- 新增 `src/lib/auth.ts` — NextAuth 配置
+- 新增 `src/lib/api-utils.ts` — API 工具函数
+- 新增 `src/types/next-auth.d.ts` — 类型扩展
+- 新增 `prisma/` 目录 — Schema + 迁移文件
+
+### 安全
+- 图片不再对外公开（`private/uploads/` 不通过静态服务暴露）
+- 数据库文件 `prisma/dev.db` 加入 `.gitignore`
+
 ## v0.3.0 (2026-07-19)
 
 ### 新增
