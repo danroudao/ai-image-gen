@@ -32,15 +32,28 @@ export default function AdminSettingsPage() {
 
   const handleSave = async () => {
     setMessage('')
-    const res = await fetch('/api/admin/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ defaultMaxTasks, defaultMonthlyLimit, maxStorageMB }),
-    })
-    if (res.ok) {
-      setMessage('已保存')
-    } else {
-      setMessage('保存失败')
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultMaxTasks, defaultMonthlyLimit, maxStorageMB }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage('已保存')
+        // refetch to confirm
+        fetch('/api/admin/settings').then(r => r.json()).then(d => {
+          if (d.data) {
+            setDefaultMaxTasks(d.data.defaultMaxTasks)
+            setDefaultMonthlyLimit(d.data.defaultMonthlyLimit)
+            setMaxStorageMB(d.data.maxStorageMB ?? 500)
+          }
+        }).catch(() => {})
+      } else {
+        setMessage(data.error?.message || '保存失败')
+      }
+    } catch {
+      setMessage('网络错误，保存失败')
     }
   }
 
