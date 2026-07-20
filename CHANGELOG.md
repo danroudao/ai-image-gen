@@ -1,5 +1,22 @@
 # 更新日志
 
+## v0.8.0 (2026-07-20) — 图片迁移 + 存储管理 + WebP 转码
+
+### 新增
+- **旧图片迁移脚本** `scripts/migrate-images.ts`：将 22 张旧 PNG 从 `public/generated/` 迁移到 `private/uploads/` 并创建 DB 记录
+- **WebP 自动转码**：下载图片时通过 `sharp` 转为 WebP（质量 85），体积减少 60-80%
+- **存储容量管理**：全局存储上限（默认 500MB），超限自动删除最旧图片
+- **孤立记录清理**：自动删除文件已不存在的 DB 记录
+- **存储配置**：系统设置新增"存储上限"滑块（50MB–5GB）
+
+### 架构
+- `SystemConfig` 新增 `maxStorageMB` 字段 + Prisma 迁移
+- `cleanupOldImages()` 重写：按字节计算容量，同步清理 DB 记录
+- `downloadImage()` 接入 sharp.webp() 转换
+
+### 清理
+- `public/generated/` 中已迁移的 PNG 已删除
+
 ## v0.7.0 (2026-07-20) — Bug 修复 + 仪表盘增强
 
 ### Bug 修复

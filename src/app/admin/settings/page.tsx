@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Save, Settings } from 'lucide-react'
+import { ArrowLeft, Save, Settings, HardDrive } from 'lucide-react'
 import Link from 'next/link'
 
 interface Config {
   defaultMaxTasks: number
   defaultMonthlyLimit: number
+  maxStorageMB: number
   allowRegistration: boolean
 }
 
@@ -14,6 +15,7 @@ export default function AdminSettingsPage() {
   const [config, setConfig] = useState<Config | null>(null)
   const [defaultMaxTasks, setDefaultMaxTasks] = useState(3)
   const [defaultMonthlyLimit, setDefaultMonthlyLimit] = useState(500)
+  const [maxStorageMB, setMaxStorageMB] = useState(500)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -23,6 +25,7 @@ export default function AdminSettingsPage() {
         setConfig(d.data)
         setDefaultMaxTasks(d.data.defaultMaxTasks)
         setDefaultMonthlyLimit(d.data.defaultMonthlyLimit)
+        setMaxStorageMB(d.data.maxStorageMB ?? 500)
       })
       .catch(() => {})
   }, [])
@@ -32,7 +35,7 @@ export default function AdminSettingsPage() {
     const res = await fetch('/api/admin/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ defaultMaxTasks, defaultMonthlyLimit }),
+      body: JSON.stringify({ defaultMaxTasks, defaultMonthlyLimit, maxStorageMB }),
     })
     if (res.ok) {
       setMessage('已保存')
@@ -86,6 +89,31 @@ export default function AdminSettingsPage() {
                 className="w-full accent-primary"
               />
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border bg-card/80 backdrop-blur-sm p-4 space-y-4">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <HardDrive className="h-4 w-4 text-blue-500" />
+            存储管理
+          </h2>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">
+              全局存储上限: {maxStorageMB} MB
+              {maxStorageMB < 100 && <span className="text-amber-500 ml-2">⚠ 过低</span>}
+            </label>
+            <input
+              type="range"
+              min={50}
+              max={5000}
+              step={50}
+              value={maxStorageMB}
+              onChange={(e) => setMaxStorageMB(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+            <p className="text-[11px] text-muted-foreground/60">
+              超出上限时自动删除最旧的图片，始终保留至少 200MB 空闲空间
+            </p>
           </div>
         </div>
 

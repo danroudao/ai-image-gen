@@ -18,11 +18,12 @@ export async function PUT(request: NextRequest) {
   const updateData: Record<string, unknown> = {}
   if (body.defaultMaxTasks !== undefined) updateData.defaultMaxTasks = body.defaultMaxTasks
   if (body.defaultMonthlyLimit !== undefined) updateData.defaultMonthlyLimit = body.defaultMonthlyLimit
+  if (body.maxStorageMB !== undefined) updateData.maxStorageMB = body.maxStorageMB
   if (body.allowRegistration !== undefined) updateData.allowRegistration = body.allowRegistration
 
   const config = await prisma.systemConfig.upsert({
     where: { id: 'default' },
-    create: { id: 'default', ...updateData } as { id: string; defaultMaxTasks?: number; defaultMonthlyLimit?: number; allowRegistration?: boolean },
+    create: { id: 'default', ...updateData } as Record<string, unknown>,
     update: updateData,
   })
 

@@ -2,43 +2,107 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
+import sharp from 'sharp'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-utils'
 
 const API_BASE = 'https://api.apib.ai/v1'
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads')
-const MAX_IMAGES = 50
+const MIN_FREE_BYTES = 200 * 1024 * 1024 // keep at least 200MB free after cleanup
+
+async function getMaxStorageMB(): Promise<number> {
+  try {
+    const config = await prisma.systemConfig.findUnique({ where: { id: 'default' } })
+    return config?.maxStorageMB ?? 500
+  } catch {
+    return 500
+  }
+}
 
 async function downloadImage(url: string, userId: string): Promise<{ localPath: string; imageId: string }> {
   const res = await fetch(url)
   const buffer = Buffer.from(await res.arrayBuffer())
-  const name = `${uuidv4()}.png`
+
+  // convert to WebP via sharp
+  const webpBuffer = await sharp(buffer).webp({ quality: 85 }).toBuffer()
+  const name = `${uuidv4()}.webp`
   const filePath = path.join(UPLOAD_DIR, name)
   await fs.mkdir(UPLOAD_DIR, { recursive: true })
-  await fs.writeFile(filePath, buffer)
+  await fs.writeFile(filePath, webpBuffer)
 
   const image = await prisma.image.create({
     data: {
       userId,
       filePath: name,
       prompt: '',
+      size: `${buffer.length}B->${webpBuffer.length}B`,
     },
   })
 
   return { localPath: name, imageId: image.id }
 }
 
+async function getDirSize(dir: string): Promise<number> {
+  const files = await fs.readdir(dir)
+  let total = 0
+  for (const f of files) {
+    try {
+      const stat = await fs.stat(path.join(dir, f))
+      total += stat.size
+    } catch { /* skip */ }
+  }
+  return total
+}
+
 async function cleanupOldImages() {
   try {
+    await fs.mkdir(UPLOAD_DIR, { recursive: true }).catch(() => {})
+    const maxStorageMB = await getMaxStorageMB()
+    const maxBytes = maxStorageMB * 1024 * 1024
+
+    // delete DB records with no corresponding file
+    const allImages = await prisma.image.findMany({ select: { id: true, filePath: true } })
+    for (const img of allImages) {
+      try {
+        await fs.access(path.join(UPLOAD_DIR, img.filePath))
+      } catch {
+        await prisma.image.delete({ where: { id: img.id } }).catch(() => {})
+      }
+    }
+
+    // check total size
+    const totalBytes = await getDirSize(UPLOAD_DIR)
+    if (totalBytes <= maxBytes) return
+
+    // read files sorted by mtime ascending (oldest first)
     const files = await fs.readdir(UPLOAD_DIR)
-    if (files.length <= MAX_IMAGES) return
-    const sorted = files
-      .map((f) => ({ name: f, time: fs.stat(path.join(UPLOAD_DIR, f)).then((s) => s.mtimeMs) }))
-    const stats = await Promise.all(sorted.map((s) => s.time.then((t) => ({ name: s.name, mtimeMs: t }))))
-    stats.sort((a, b) => b.mtimeMs - a.mtimeMs)
-    const toDelete = stats.slice(MAX_IMAGES)
-    for (const f of toDelete) {
+    const stats = await Promise.all(
+      files.map(async (f) => {
+        try {
+          const s = await fs.stat(path.join(UPLOAD_DIR, f))
+          return { name: f, mtimeMs: s.mtimeMs, size: s.size }
+        } catch {
+          return null
+        }
+      })
+    )
+    const valid = stats.filter(Boolean) as { name: string; mtimeMs: number; size: number }[]
+    valid.sort((a, b) => a.mtimeMs - b.mtimeMs)
+
+    let deleted = 0
+    let freed = 0
+    const targetBytes = maxBytes - MIN_FREE_BYTES
+
+    for (const f of valid) {
+      if (totalBytes - freed <= targetBytes) break
       await fs.unlink(path.join(UPLOAD_DIR, f.name)).catch(() => {})
+      await prisma.image.deleteMany({ where: { filePath: f.name } }).catch(() => {})
+      freed += f.size
+      deleted++
+    }
+
+    if (deleted > 0) {
+      console.log(`cleanup: deleted ${deleted} files, freed ${(freed / 1024 / 1024).toFixed(1)}MB`)
     }
   } catch { /* directory might not exist */ }
 }
@@ -90,8 +154,6 @@ export async function GET(
         },
       }).catch(() => {})
 
-      // update quota usage
-      const cost = data.data.cost ?? 0
       await prisma.quota.updateMany({
         where: { userId: auth.user!.id },
         data: { usedThisMonth: { increment: imageIds.length } },
