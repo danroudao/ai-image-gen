@@ -37,9 +37,11 @@
 npm install
 
 # 配置环境变量
-cp .env.local.example .env.local
-# 填写 APIB_API_KEY（获取：https://apib.ai）
-# 生成 AUTH_SECRET（可用 openssl rand -hex 32）
+cp .env .env.local
+# 填写：
+# - APIB_API_KEY（获取：https://apib.ai）
+# - AUTH_SECRET（生成：openssl rand -hex 32）
+# - 如有反代，设置 NEXTAUTH_URL=https://你的域名.com
 
 # 初始化数据库
 npx prisma migrate dev
@@ -209,6 +211,29 @@ npm install
 npx prisma migrate dev
 npm run build
 sudo systemctl restart ai-image-gen
+```
+
+### 反向代理配置
+
+使用 Nginx 反代时，确保转发以下头部并设置环境变量：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name 你的域名.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+`.env.local` 中必须设置：
+```
+NEXTAUTH_URL=https://你的域名.com
 ```
 
 ## 安全
