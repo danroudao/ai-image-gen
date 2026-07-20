@@ -67,7 +67,7 @@ export function OperationPanel({ onGenerate }: OperationPanelProps) {
   const selectedLabel = ASPECT_RATIOS.find((r) => r.value === size)?.label || size
 
   return (
-    <Card className="h-full">
+    <Card className="h-full bg-card/80 backdrop-blur-sm">
       <CardContent className="p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">图片比例</label>

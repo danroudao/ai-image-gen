@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -7,7 +8,12 @@ interface SettingsStore {
   setTheme: (theme: Theme) => void
 }
 
-export const useSettingsStore = create<SettingsStore>((set) => ({
-  theme: 'system',
-  setTheme: (theme) => set({ theme }),
-}))
+export const useSettingsStore = create<SettingsStore>()(
+  persist(
+    (set) => ({
+      theme: 'system',
+      setTheme: (theme) => set({ theme }),
+    }),
+    { name: 'ai-image-settings' }
+  )
+)

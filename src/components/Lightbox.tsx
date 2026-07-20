@@ -53,25 +53,25 @@ export function Lightbox({ images, currentIndex, prompt, onClose, onPrev, onNext
       onClick={onClose}
     >
       <button
-        className="absolute top-4 right-4 text-white/80 hover:text-white z-10 cursor-pointer"
+        className="absolute top-2 md:top-4 right-2 md:right-4 text-white/80 hover:text-white z-10 cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
         onClick={onClose}
       >
-        <X className="h-8 w-8" />
+        <X className="h-6 md:h-8 w-6 md:w-8" />
       </button>
 
       {images.length > 1 && (
         <>
           <button
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white z-10 cursor-pointer"
+            className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white z-10 cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
             onClick={(e) => { e.stopPropagation(); onPrev() }}
           >
-            <ChevronLeft className="h-10 w-10" />
+            <ChevronLeft className="h-8 md:h-10 w-8 md:w-10" />
           </button>
           <button
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white z-10 cursor-pointer"
+            className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white z-10 cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
             onClick={(e) => { e.stopPropagation(); onNext() }}
           >
-            <ChevronRight className="h-10 w-10" />
+            <ChevronRight className="h-8 md:h-10 w-8 md:w-10" />
           </button>
         </>
       )}
@@ -83,36 +83,36 @@ export function Lightbox({ images, currentIndex, prompt, onClose, onPrev, onNext
           className="max-h-[75vh] max-w-[90vw] object-contain rounded-lg"
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-1 md:gap-3 flex-nowrap">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white/15 text-white/90 text-sm hover:bg-white/25 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-3 h-6 md:h-8 rounded-md bg-white/15 text-white/90 text-[11px] md:text-sm hover:bg-white/25 transition-colors cursor-pointer"
             onClick={() => { onReusePrompt(prompt); onClose() }}
           >
-            <FileText className="h-4 w-4" />
+            <FileText className="h-3 md:h-4 w-3 md:w-4" />
             复用提示词
           </button>
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white/15 text-white/90 text-sm hover:bg-white/25 transition-colors cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-3 h-6 md:h-8 rounded-md bg-white/15 text-white/90 text-[11px] md:text-sm hover:bg-white/25 transition-colors cursor-pointer disabled:opacity-50"
             onClick={handleUseAsRef}
             disabled={refLoading || refDone}
           >
             {refLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-3 md:h-4 w-3 md:w-4 animate-spin" />
             ) : refDone ? (
-              <Check className="h-4 w-4 text-green-400" />
+              <Check className="h-3 md:h-4 w-3 md:w-4 text-green-400" />
             ) : (
-              <ImagePlus className="h-4 w-4" />
+              <ImagePlus className="h-3 md:h-4 w-3 md:w-4" />
             )}
             {refLoading ? '添加中...' : refDone ? '已添加' : '作为参考图'}
           </button>
           <a
             href={currentUrl}
             download
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white/15 text-white/90 text-sm hover:bg-white/25 transition-colors"
+            className="inline-flex items-center gap-1 md:gap-1.5 px-1.5 md:px-3 h-6 md:h-8 rounded-md bg-white/15 text-white/90 text-[11px] md:text-sm hover:bg-white/25 transition-colors"
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3 md:h-4 w-3 md:w-4" />
             下载
           </a>
         </div>

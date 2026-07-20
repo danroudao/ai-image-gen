@@ -70,6 +70,7 @@ export interface HistoryEntry {
   task_id: string
   params: GenerationParams
   localImages: string[]
+  imageIds?: string[]
   cost: number
   created_at: number
 }
@@ -79,12 +80,12 @@ export interface TaskItem {
   taskId: string
   prompt: string
   status: 'queued' | 'running' | 'completed' | 'failed'
-  progress: number
   images: string[]
   cost: number
   size: string
   resolution: string
   createdAt: number
+  startedAt?: number
 }
 
 export interface GenerationState {

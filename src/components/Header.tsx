@@ -15,12 +15,12 @@ export function Header() {
   const Icon = theme === 'dark' ? Sun : Moon
 
   return (
-    <header className="flex items-center justify-between border-b px-4 py-3 bg-background">
+    <header className="flex items-center justify-between border-b px-3 md:px-4 py-2 md:py-3 bg-background/80 backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
+        <div className="size-7 md:size-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs md:text-sm">
           AI
         </div>
-        <span className="font-semibold text-lg">AI 绘图</span>
+        <span className="font-semibold text-base md:text-lg">AI 绘图</span>
       </div>
       <button
         type="button"

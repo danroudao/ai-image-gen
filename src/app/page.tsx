@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Header } from '@/components/Header'
 import { OperationPanel } from '@/components/OperationPanel'
@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { submitGeneration, queryTask } from '@/lib/api'
 import { GenerationParams, HistoryEntry } from '@/lib/types'
 import { UploadedImage } from '@/components/ImageUploader'
+import { useToastStore } from '@/stores/toast-store'
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -30,118 +31,159 @@ async function urlToBase64(url: string): Promise<string> {
   })
 }
 
+async function pollSingle(taskId: string): Promise<{ localImages: string[]; imageIds: string[]; cost: number } | null> {
+  for (let i = 0; i < 120; i++) {
+    const res = await queryTask(taskId)
+    const task = res.data
+    if (!task) return null
+    if (task.status === 'completed') {
+      if (task.localImages && task.localImages.length > 0) {
+        return { localImages: task.localImages, imageIds: (task as { localImageIds?: string[] }).localImageIds ?? [], cost: task.cost ?? 0 }
+      }
+      if (task.result?.images) {
+        return { localImages: task.result.images.flatMap((img) => img.url), imageIds: [], cost: task.cost ?? 0 }
+      }
+    }
+    if (task.status === 'failed') {
+      return null
+    }
+    await sleep(2000)
+  }
+  return null
+}
+
 export default function Home() {
   const gen = useGenerationStore()
   const history = useHistoryStore()
   const form = useFormStore()
+  const toast = useToastStore()
   const [lastParams, setLastParams] = useState<{ size: string; resolution: string } | null>(null)
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
 
-  const pollSingle = useCallback(
-    async (taskId: string): Promise<{ localImages: string[]; cost: number } | null> => {
-      for (let i = 0; i < 120; i++) {
-        const res = await queryTask(taskId)
-        const task = res.data
-        if (!task) return null
-        if (task.status === 'completed') {
-          if (task.localImages && task.localImages.length > 0) {
-            return { localImages: task.localImages, cost: task.cost ?? 0 }
-          }
-          if (task.result?.images) {
-            return { localImages: task.result.images.flatMap((img) => img.url), cost: task.cost ?? 0 }
-          }
-        }
-        if (task.status === 'failed') {
-          return null
-        }
-        await sleep(2000)
-      }
-      return null
-    },
-    []
-  )
+  useEffect(() => {
+    history.loadHistory()
+  }, [history])
 
   const handleGenerate = useCallback(
     async (params: GenerationParams) => {
+      setSelectedHistoryId(null)
+      gen.setViewingHistory(false)
+      gen.setError(null)
+      gen.setImages([])
       gen.startGeneration()
       setLastParams({ size: params.size, resolution: params.resolution })
 
-      const taskUid = uuidv4()
-      const taskId = uuidv4()
-
-      gen.addTask({
-        id: taskUid,
-        taskId,
-        prompt: params.prompt.slice(0, 50),
-        status: 'queued',
-        progress: 0,
-        images: [],
-        cost: 0,
-        size: params.size,
-        resolution: params.resolution,
-        createdAt: Date.now(),
+      const count = params.n
+      const taskCards = Array.from({ length: count }, () => {
+        const uid = uuidv4()
+        gen.addTask({
+          id: uid,
+          taskId: '',
+          prompt: params.prompt.slice(0, 50),
+          status: 'queued',
+          images: [],
+          cost: 0,
+          size: params.size,
+          resolution: params.resolution,
+          createdAt: Date.now(),
+        })
+        return uid
       })
 
-      try {
-        const res = await submitGeneration(params)
-        if (res.error) {
-          gen.updateTask(taskUid, { status: 'failed' })
-          gen.setError(res.error.message)
-          return
-        }
+      const submissions = await Promise.allSettled(
+        Array.from({ length: count }, () =>
+          submitGeneration({ ...params, n: 1 })
+        )
+      )
 
-        const apiTask = res.data?.[0]
-        if (!apiTask?.task_id) {
-          gen.updateTask(taskUid, { status: 'failed' })
-          gen.setError('提交失败：未获取到任务 ID')
-          return
-        }
-
-        gen.updateTask(taskUid, { taskId: apiTask.task_id, status: 'running' })
-        gen.setTaskId(apiTask.task_id)
-        gen.setStatus('submitted')
-        gen.setProgress(5)
-
-        const result = await pollSingle(apiTask.task_id)
-        if (result) {
-          gen.appendImages(result.localImages)
-          gen.updateTask(taskUid, {
-            status: 'completed',
-            images: result.localImages,
-            cost: result.cost,
-            progress: 100,
-          })
-          gen.setCost(result.cost)
-          gen.setProgress(100)
-          gen.setStatus('completed')
-
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { image_urls, ...cleanParams } = params
-          history.addEntry({
-            id: uuidv4(),
-            task_id: apiTask.task_id,
-            params: cleanParams,
-            localImages: result.localImages,
-            cost: result.cost,
-            created_at: Date.now(),
-          })
+      const apiIds: { uid: string; apiTaskId: string }[] = []
+      for (let i = 0; i < submissions.length; i++) {
+        const sub = submissions[i]
+        if (sub.status === 'fulfilled' && !sub.value.error && sub.value.data?.[0]?.task_id) {
+          apiIds.push({ uid: taskCards[i], apiTaskId: sub.value.data[0].task_id })
+          gen.updateTask(taskCards[i], { taskId: sub.value.data[0].task_id, status: 'running', startedAt: Date.now() })
         } else {
-          gen.updateTask(taskUid, { status: 'failed' })
-          gen.setError('生成超时或失败')
+          gen.updateTask(taskCards[i], { status: 'failed' })
         }
-      } catch (err) {
-        gen.updateTask(taskUid, { status: 'failed' })
-        gen.setError(err instanceof Error ? err.message : '网络错误')
+      }
+
+      if (apiIds.length === 0) {
+        gen.setError('提交失败')
+        toast.addToast({ message: '提交失败，请检查 API Key 是否正确', type: 'error' })
+        return
+      }
+
+      gen.setStatus('submitted')
+
+      const pollResults = await Promise.allSettled(
+        apiIds.map(({ apiTaskId }) => pollSingle(apiTaskId))
+      )
+
+      const allImages: string[] = []
+      const allImageIds: string[] = []
+      let totalCost = 0
+      let successCount = 0
+
+      for (let i = 0; i < pollResults.length; i++) {
+        const result = pollResults[i]
+        const uid = apiIds[i].uid
+        if (result.status === 'fulfilled' && result.value) {
+          allImages.push(...result.value.localImages)
+          allImageIds.push(...result.value.imageIds)
+          totalCost += result.value.cost
+          gen.appendImages(result.value.localImages)
+          gen.updateTask(uid, {
+            status: 'completed',
+            images: result.value.localImages,
+            cost: result.value.cost,
+          })
+          successCount++
+        } else {
+          gen.updateTask(uid, { status: 'failed' })
+        }
+      }
+
+      gen.setCost(totalCost)
+      gen.setProgress(100)
+      gen.setStatus('completed')
+
+      const cleanParams = {
+        model: params.model,
+        prompt: params.prompt,
+        n: count,
+        size: params.size,
+        resolution: params.resolution,
+        official_fallback: params.official_fallback,
+      }
+      history.addEntry({
+        id: uuidv4(),
+        task_id: apiIds[0].apiTaskId,
+        params: { ...cleanParams, n: count },
+        localImages: allImages,
+        imageIds: allImageIds,
+        cost: totalCost,
+        created_at: Date.now(),
+      })
+
+      if (successCount > 0) {
+        toast.addToast({ message: `生成完成，共 ${allImages.length} 张图片${totalCost > 0 ? `，费用 $${totalCost.toFixed(4)}` : ''}`, type: 'success' })
+      } else {
+        toast.addToast({ message: '所有任务均生成失败', type: 'error' })
       }
     },
-    [gen, history, pollSingle]
+    [gen, history, toast]
   )
 
   const handleHistorySelect = useCallback(
     (entry: HistoryEntry) => {
+      setSelectedHistoryId(entry.id)
       gen.setError(null)
       gen.setStatus(null)
       gen.setViewingHistory(true)
-      gen.setImages(entry.localImages)
+      const imgs = entry.imageIds && entry.imageIds.length > 0
+        ? entry.imageIds.map((id) => `/api/images/${id}`)
+        : entry.localImages
+      gen.setImages(imgs)
       gen.setCost(entry.cost)
       setLastParams({ size: entry.params.size, resolution: entry.params.resolution })
       if (entry.params.prompt) {
@@ -165,6 +207,15 @@ export default function Home() {
     [form]
   )
 
+  const handleDeleteImage = useCallback(
+    (index: number) => {
+      const newImages = gen.images.filter((_, i) => i !== index)
+      gen.setImages(newImages)
+      toast.addToast({ message: '已删除图片', type: 'info' })
+    },
+    [gen, toast]
+  )
+
   const handleUseAsRef = useCallback(
     async (url: string) => {
       try {
@@ -172,44 +223,57 @@ export default function Home() {
         const id = uuidv4()
         const name = url.split('/').pop() || 'reference'
         form.setRefImages((prev: UploadedImage[]) => [...prev, { id, data, name }])
+        toast.addToast({ message: '已添加为参考图', type: 'success' })
       } catch {
-        // silently fail
+        toast.addToast({ message: '添加参考图失败', type: 'error' })
       }
     },
-    [form]
+    [form, toast]
+  )
+
+  const handleReuseWithFeedback = useCallback(
+    (prompt: string) => {
+      handleReusePrompt(prompt)
+      toast.addToast({ message: '已复用提示词', type: 'info' })
+    },
+    [handleReusePrompt, toast]
   )
 
   return (
     <div className="h-full flex flex-col">
       <ErrorBoundary>
       <Header />
-      <div className="flex-1 flex flex-col items-center px-6 py-6 min-h-0">
-        <div className="flex-1 flex flex-col gap-4 min-h-0 w-full max-w-6xl">
-          <div className="flex-1 flex gap-5 min-h-0">
-            <div className="w-72 flex-shrink-0">
-              <OperationPanel onGenerate={handleGenerate} isGenerating={gen.isGenerating} />
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex flex-col items-center px-3 md:px-6 py-3 md:py-6">
+          <div className="flex flex-col gap-3 md:gap-4 w-full max-w-6xl">
+            <div className="flex flex-col md:flex-row gap-3 md:gap-5">
+              <div className="w-full md:w-72 flex-shrink-0">
+                <OperationPanel onGenerate={handleGenerate} isGenerating={gen.isGenerating} />
+              </div>
+              <div className="flex-1 min-h-[200px] md:min-h-0">
+                <ImageDisplayArea
+                  images={gen.images}
+                  isGenerating={gen.isGenerating}
+                  error={gen.error}
+                  cost={gen.cost}
+                  params={lastParams}
+                  prompt={form.prompt}
+                  onReusePrompt={handleReuseWithFeedback}
+                  onUseAsRef={handleUseAsRef}
+                  onDeleteImage={handleDeleteImage}
+                />
+              </div>
             </div>
-            <div className="flex-1 min-h-0">
-              <ImageDisplayArea
-                images={gen.images}
-                isGenerating={gen.isGenerating}
-                error={gen.error}
-                cost={gen.cost}
-                params={lastParams}
-                prompt={form.prompt}
-                onReusePrompt={handleReusePrompt}
-                onUseAsRef={handleUseAsRef}
+            <div>
+              <TaskFlow />
+            </div>
+            <div>
+              <HistoryBar
+                onSelect={handleHistorySelect}
+                onRemove={handleHistoryRemove}
+                selectedId={selectedHistoryId}
               />
             </div>
-          </div>
-          <div className="flex-shrink-0">
-            <TaskFlow />
-          </div>
-          <div className="flex-shrink-0">
-            <HistoryBar
-              onSelect={handleHistorySelect}
-              onRemove={handleHistoryRemove}
-            />
           </div>
         </div>
         </div>

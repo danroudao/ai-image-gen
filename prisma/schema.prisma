@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  userId    String   @default("")
+  filePath  String
+  prompt    String
+  size      String?
+  cost      Float    @default(0)
+  taskId    String?
+  createdAt DateTime @default(now())
+}
+
+model GenerationTask {
+  id          String    @id @default(cuid())
+  userId      String    @default("")
+  apiTaskId   String?
+  prompt      String
+  status      String    @default("queued")
+  cost        Float     @default(0)
+  imageCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+model HistoryEntry {
+  id        String   @id @default(cuid())
+  userId    String   @default("")
+  params    String
+  imageIds  String
+  cost      Float    @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Quota {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  maxTasks      Int      @default(3)
+  monthlyLimit  Int      @default(500)
+  usedThisMonth Int      @default(0)
+  monthReset    DateTime @default(now())
+}

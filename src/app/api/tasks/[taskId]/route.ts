@@ -1,32 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import path from 'path'
+import { v4 as uuidv4 } from 'uuid'
+import { prisma } from '@/lib/prisma'
 
 const API_BASE = 'https://api.apib.ai/v1'
-const GENERATED_DIR = path.join(process.cwd(), 'public', 'generated')
+const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads')
 const MAX_IMAGES = 50
 
-async function downloadImage(url: string): Promise<string> {
+async function downloadImage(url: string): Promise<{ localPath: string; imageId: string }> {
   const res = await fetch(url)
   const buffer = Buffer.from(await res.arrayBuffer())
-  const name = `${crypto.randomUUID()}.png`
-  const filePath = path.join(GENERATED_DIR, name)
-  await fs.mkdir(GENERATED_DIR, { recursive: true })
+  const name = `${uuidv4()}.png`
+  const filePath = path.join(UPLOAD_DIR, name)
+  await fs.mkdir(UPLOAD_DIR, { recursive: true })
   await fs.writeFile(filePath, buffer)
-  return `/generated/${name}`
+
+  const image = await prisma.image.create({
+    data: {
+      filePath: name,
+      prompt: '',
+    },
+  })
+
+  return { localPath: name, imageId: image.id }
 }
 
 async function cleanupOldImages() {
   try {
-    const files = await fs.readdir(GENERATED_DIR)
+    const files = await fs.readdir(UPLOAD_DIR)
     if (files.length <= MAX_IMAGES) return
     const sorted = files
-      .map((f) => ({ name: f, time: fs.stat(path.join(GENERATED_DIR, f)).then((s) => s.mtimeMs) }))
+      .map((f) => ({ name: f, time: fs.stat(path.join(UPLOAD_DIR, f)).then((s) => s.mtimeMs) }))
     const stats = await Promise.all(sorted.map((s) => s.time.then((t) => ({ name: s.name, mtimeMs: t }))))
     stats.sort((a, b) => b.mtimeMs - a.mtimeMs)
     const toDelete = stats.slice(MAX_IMAGES)
     for (const f of toDelete) {
-      await fs.unlink(path.join(GENERATED_DIR, f.name)).catch(() => {})
+      await fs.unlink(path.join(UPLOAD_DIR, f.name)).catch(() => {})
     }
   } catch { /* directory might not exist */ }
 }
@@ -52,17 +62,36 @@ export async function GET(
     const data = await res.json()
 
     if (res.ok && data.data?.status === 'completed' && data.data?.result?.images) {
-      const localUrls: string[] = []
+      const imageIds: string[] = []
+      const localPaths: string[] = []
+
       for (const img of data.data.result.images) {
         for (const url of img.url) {
-          const localUrl = await downloadImage(url)
-          localUrls.push(localUrl)
+          const result = await downloadImage(url)
+          imageIds.push(result.imageId)
+          localPaths.push(`/api/images/${result.imageId}`)
         }
       }
+
       await cleanupOldImages()
+
+      await prisma.generationTask.updateMany({
+        where: { apiTaskId: taskId },
+        data: {
+          status: 'completed',
+          cost: data.data.cost ?? 0,
+          imageCount: imageIds.length,
+          completedAt: new Date(),
+        },
+      }).catch(() => {})
+
       return NextResponse.json({
         ...data,
-        data: { ...data.data, localImages: localUrls },
+        data: {
+          ...data.data,
+          localImages: localPaths,
+          localImageIds: imageIds,
+        },
       })
     }
 

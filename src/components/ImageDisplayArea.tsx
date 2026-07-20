@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { ImageDown, AlertCircle, MoreHorizontal, FileText, ImagePlus, Download, Check, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ImageDown, AlertCircle, FileText, Check, Loader2, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Lightbox } from './Lightbox'
 
@@ -29,75 +29,7 @@ interface ImageDisplayAreaProps {
   prompt: string
   onReusePrompt: (prompt: string) => void
   onUseAsRef: (url: string) => Promise<void>
-}
-
-function ImageMenu({ url, prompt, onReusePrompt, onUseAsRef, onClose }: {
-  url: string
-  prompt: string
-  onReusePrompt: (prompt: string) => void
-  onUseAsRef: (url: string) => Promise<void>
-  onClose: () => void
-}) {
-  const [refLoading, setRefLoading] = useState(false)
-  const [refDone, setRefDone] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [onClose])
-
-  const handleUseAsRef = async () => {
-    setRefLoading(true)
-    await onUseAsRef(url)
-    setRefLoading(false)
-    setRefDone(true)
-    setTimeout(onClose, 800)
-  }
-
-  return (
-    <div
-      ref={ref}
-      className="absolute bottom-10 right-0 z-30 w-40 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg overflow-hidden"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer"
-        onClick={() => { onReusePrompt(prompt); onClose() }}
-      >
-        <FileText className="h-3.5 w-3.5" />
-        复用提示词
-      </button>
-      <button
-        type="button"
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors cursor-pointer disabled:opacity-50"
-        onClick={handleUseAsRef}
-        disabled={refLoading || refDone}
-      >
-        {refLoading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : refDone ? (
-          <Check className="h-3.5 w-3.5 text-green-500" />
-        ) : (
-          <ImagePlus className="h-3.5 w-3.5" />
-        )}
-        {refLoading ? '添加中...' : refDone ? '已添加' : '作为参考图'}
-      </button>
-      <a
-        href={url}
-        download
-        className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors"
-        onClick={onClose}
-      >
-        <Download className="h-3.5 w-3.5" />
-        下载
-      </a>
-    </div>
-  )
+  onDeleteImage?: (index: number) => void
 }
 
 export function ImageDisplayArea({
@@ -109,9 +41,9 @@ export function ImageDisplayArea({
   prompt,
   onReusePrompt,
   onUseAsRef,
+  onDeleteImage,
 }: ImageDisplayAreaProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-  const [menuIdx, setMenuIdx] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -124,9 +56,9 @@ export function ImageDisplayArea({
     if (images.length > 0) {
       const singleCol = images.length === 1
       return (
-        <div className="space-y-4">
+        <div className="space-y-3 overflow-y-auto min-h-0 max-h-full">
           <div
-            className={`grid ${singleCol ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}
+            className={`grid ${singleCol ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}
             style={singleCol ? { maxWidth: '70%', margin: '0 auto' } : undefined}
           >
             {images.map((url, idx) => (
@@ -138,29 +70,21 @@ export function ImageDisplayArea({
                 <img
                   src={url}
                   alt={`生成图片 ${idx + 1}`}
-                  className="w-full object-contain max-h-[55vh] transition-transform duration-300 group-hover:scale-[1.02] bg-muted"
+                  className="w-full object-contain max-h-[45vh] transition-transform duration-300 group-hover:scale-[1.02] bg-muted"
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                   <ImageDown className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <div className="absolute top-2 right-2 z-10">
+                {onDeleteImage && (
                   <button
                     type="button"
-                    className="size-7 rounded-md bg-black/50 text-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); setMenuIdx(menuIdx === idx ? null : idx) }}
+                    className="absolute top-2 right-2 size-7 rounded-md bg-black/50 text-white/90 flex items-center justify-center cursor-pointer z-10 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity hover:bg-black/70"
+                    onClick={(e) => { e.stopPropagation(); onDeleteImage(idx) }}
+                    title="删除"
                   >
-                    <MoreHorizontal className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
-                  {menuIdx === idx && (
-                    <ImageMenu
-                      url={url}
-                      prompt={prompt}
-                      onReusePrompt={onReusePrompt}
-                      onUseAsRef={onUseAsRef}
-                      onClose={() => setMenuIdx(null)}
-                    />
-                  )}
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -230,7 +154,7 @@ export function ImageDisplayArea({
 
   return (
     <>
-      <Card className="h-full">
+      <Card className="h-full bg-card/80 backdrop-blur-sm">
         <CardContent className="p-4 h-full">
           {renderContent()}
         </CardContent>
