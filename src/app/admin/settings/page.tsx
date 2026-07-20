@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Settings } from 'lucide-react'
+import { ArrowLeft, Save, Settings } from 'lucide-react'
+import Link from 'next/link'
 
 interface Config {
   defaultMaxTasks: number
@@ -43,10 +44,19 @@ export default function AdminSettingsPage() {
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-xl font-semibold flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          系统设置
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            系统设置
+          </h1>
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回管理后台
+          </Link>
+        </div>
 
         <div className="rounded-lg border bg-card/80 backdrop-blur-sm p-4 space-y-4">
           <h2 className="text-sm font-medium">默认额度（新用户）</h2>

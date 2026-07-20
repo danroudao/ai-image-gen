@@ -63,7 +63,7 @@ export default function Home() {
 
   useEffect(() => {
     history.loadHistory()
-  }, [history])
+  }, [])
 
   const handleGenerate = useCallback(
     async (params: GenerationParams) => {

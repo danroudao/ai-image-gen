@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Save, User, Shield, ImageIcon, Activity, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Save, User, Shield, ImageIcon, Activity, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
 
 interface UserSettings {
   email: string
@@ -16,7 +16,6 @@ interface UserSettings {
 
 export default function SettingsPage() {
   const { data: session, update } = useSession()
-  const router = useRouter()
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [name, setName] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
@@ -70,7 +69,16 @@ export default function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-xl font-semibold">账号设置</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold">账号设置</h1>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回首页
+          </Link>
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
