@@ -3,12 +3,13 @@ import fs from 'fs/promises'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/api-utils'
 
 const API_BASE = 'https://api.apib.ai/v1'
 const UPLOAD_DIR = path.join(process.cwd(), 'private', 'uploads')
 const MAX_IMAGES = 50
 
-async function downloadImage(url: string): Promise<{ localPath: string; imageId: string }> {
+async function downloadImage(url: string, userId: string): Promise<{ localPath: string; imageId: string }> {
   const res = await fetch(url)
   const buffer = Buffer.from(await res.arrayBuffer())
   const name = `${uuidv4()}.png`
@@ -18,6 +19,7 @@ async function downloadImage(url: string): Promise<{ localPath: string; imageId:
 
   const image = await prisma.image.create({
     data: {
+      userId,
       filePath: name,
       prompt: '',
     },
@@ -45,6 +47,9 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
+  const auth = await requireAuth()
+  if (auth.error) return auth.error
+
   const apiKey = process.env.APIB_API_KEY
   if (!apiKey) {
     return NextResponse.json(
@@ -67,7 +72,7 @@ export async function GET(
 
       for (const img of data.data.result.images) {
         for (const url of img.url) {
-          const result = await downloadImage(url)
+          const result = await downloadImage(url, auth.user!.id)
           imageIds.push(result.imageId)
           localPaths.push(`/api/images/${result.imageId}`)
         }
@@ -83,6 +88,13 @@ export async function GET(
           imageCount: imageIds.length,
           completedAt: new Date(),
         },
+      }).catch(() => {})
+
+      // update quota usage
+      const cost = data.data.cost ?? 0
+      await prisma.quota.updateMany({
+        where: { userId: auth.user!.id },
+        data: { usedThisMonth: { increment: imageIds.length } },
       }).catch(() => {})
 
       return NextResponse.json({

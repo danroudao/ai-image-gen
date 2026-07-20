@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect } from 'react'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Header } from '@/components/Header'
+import { RequireAuth } from '@/components/RequireAuth'
 import { OperationPanel } from '@/components/OperationPanel'
 import { ImageDisplayArea } from '@/components/ImageDisplayArea'
 import { HistoryBar } from '@/components/HistoryBar'
@@ -243,6 +244,7 @@ export default function Home() {
     <div className="h-full flex flex-col">
       <ErrorBoundary>
       <Header />
+      <RequireAuth>
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="flex flex-col items-center px-3 md:px-6 py-3 md:py-6">
           <div className="flex flex-col gap-3 md:gap-4 w-full max-w-6xl">
@@ -277,6 +279,7 @@ export default function Home() {
           </div>
         </div>
         </div>
+      </RequireAuth>
       </ErrorBoundary>
     </div>
   )

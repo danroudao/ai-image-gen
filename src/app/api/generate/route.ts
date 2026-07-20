@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/api-utils'
 
 const API_BASE = 'https://api.apib.ai/v1'
 
@@ -15,6 +16,9 @@ const bodySchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth()
+  if (auth.error) return auth.error
+
   const apiKey = process.env.APIB_API_KEY
   if (!apiKey) {
     return NextResponse.json(
@@ -33,6 +37,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // quota check
+    const quota = await prisma.quota.findUnique({ where: { userId: auth.user!.id } })
+    if (quota) {
+      const runningTasks = await prisma.generationTask.count({
+        where: { userId: auth.user!.id, status: 'running' },
+      })
+      if (runningTasks >= quota.maxTasks) {
+        return NextResponse.json(
+          { error: { code: 429, message: `并发超限，当前 ${runningTasks} 个任务进行中`, type: 'quota_exceeded' } },
+          { status: 429 }
+        )
+      }
+      if (quota.usedThisMonth >= quota.monthlyLimit) {
+        return NextResponse.json(
+          { error: { code: 429, message: `本月配额已用尽 (${quota.usedThisMonth}/${quota.monthlyLimit})`, type: 'quota_exceeded' } },
+          { status: 429 }
+        )
+      }
+    }
+
     const res = await fetch(`${API_BASE}/images/generations`, {
       method: 'POST',
       headers: {
@@ -48,6 +72,7 @@ export async function POST(request: NextRequest) {
       for (const task of data.data) {
         await prisma.generationTask.create({
           data: {
+            userId: auth.user!.id,
             apiTaskId: task.task_id,
             prompt: parsed.data.prompt,
             status: 'running',

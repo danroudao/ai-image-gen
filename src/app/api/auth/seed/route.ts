@@ -19,7 +19,7 @@ export async function POST() {
   })
 
   await prisma.quota.create({
-    data: { userId: user.id },
+    data: { userId: user.id, maxTasks: 10, monthlyLimit: 5000 },
   })
 
   return NextResponse.json({ message: '管理员账号创建成功', id: user.id })

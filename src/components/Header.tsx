@@ -2,6 +2,7 @@
 
 import { Moon, Sun } from 'lucide-react'
 import { useSettingsStore } from '@/stores/settings-store'
+import { AuthStatus } from './AuthStatus'
 
 export function Header() {
   const { theme, setTheme } = useSettingsStore()
@@ -22,14 +23,17 @@ export function Header() {
         </div>
         <span className="font-semibold text-base md:text-lg">AI 绘图</span>
       </div>
-      <button
-        type="button"
-        className="inline-flex items-center justify-center size-8 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-        onClick={toggleTheme}
-        title="切换主题"
-      >
-        <Icon className="h-5 w-5" />
-      </button>
+      <div className="flex items-center gap-2">
+        <AuthStatus />
+        <button
+          type="button"
+          className="inline-flex items-center justify-center size-8 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+          onClick={toggleTheme}
+          title="切换主题"
+        >
+          <Icon className="h-5 w-5" />
+        </button>
+      </div>
     </header>
   )
 }
