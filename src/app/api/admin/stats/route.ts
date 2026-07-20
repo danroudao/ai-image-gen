@@ -2,6 +2,26 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/api-utils'
 
+function getDailyBuckets<T extends { createdAt: Date }>(
+  items: T[],
+  days: number,
+  extract: (item: T) => number = () => 1,
+): { date: string; value: number }[] {
+  const map = new Map<string, number>()
+  for (let i = 0; i < days; i++) {
+    const d = new Date()
+    d.setDate(d.getDate() - (days - 1 - i))
+    map.set(d.toISOString().slice(0, 10), 0)
+  }
+  for (const item of items) {
+    const key = item.createdAt.toISOString().slice(0, 10)
+    if (map.has(key)) {
+      map.set(key, map.get(key)! + extract(item))
+    }
+  }
+  return Array.from(map.entries()).map(([date, value]) => ({ date, value }))
+}
+
 export async function GET() {
   const admin = await requireAdmin()
   if (admin.error) return admin.error
@@ -9,6 +29,7 @@ export async function GET() {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
   const [
     totalUsers,
@@ -27,6 +48,10 @@ export async function GET() {
     adminCount,
     totalHistory,
     monthHistory,
+    dailyTasks,
+    dailyImages,
+    dailyCost,
+    dailyUsers,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.image.count(),
@@ -43,22 +68,21 @@ export async function GET() {
       where: { createdAt: { gte: monthStart } },
       _count: { id: true },
     }),
-    prisma.image.aggregate({ _sum: { cost: true } }),
-    prisma.image.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { cost: true } }),
+    prisma.generationTask.aggregate({ _sum: { cost: true } }),
+    prisma.generationTask.aggregate({ where: { createdAt: { gte: monthStart } }, _sum: { cost: true } }),
     prisma.quota.findMany({
-      where: {
-        monthlyLimit: { gt: 0 },
-        usedThisMonth: { gt: 0 },
-      },
+      where: { monthlyLimit: { gt: 0 }, usedThisMonth: { gt: 0 } },
       orderBy: { usedThisMonth: 'desc' },
       take: 10,
     }),
     prisma.generationTask.findMany({
+      where: { createdAt: { gte: thirtyDaysAgo } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: { id: true, prompt: true, status: true, imageCount: true, cost: true, createdAt: true, userId: true },
     }),
     prisma.image.findMany({
+      where: { createdAt: { gte: thirtyDaysAgo } },
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: { id: true, prompt: true, cost: true, createdAt: true, userId: true },
@@ -66,6 +90,11 @@ export async function GET() {
     prisma.user.count({ where: { role: 'admin' } }),
     prisma.historyEntry.count(),
     prisma.historyEntry.count({ where: { createdAt: { gte: monthStart } } }),
+    // daily trends (last 30 days)
+    prisma.generationTask.findMany({ where: { createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, cost: true } }),
+    prisma.image.findMany({ where: { createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
+    prisma.generationTask.findMany({ where: { createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, cost: true } }),
+    prisma.user.findMany({ where: { createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
   ])
 
   const userIds = [...new Set([
@@ -97,44 +126,27 @@ export async function GET() {
 
   return NextResponse.json({
     data: {
-      // Basic stats
-      totalUsers,
-      totalImages,
-      monthImages,
-      monthTasks,
-      // Today
-      todayTasks,
-      todayImages,
-      // Admin count
+      totalUsers, totalImages, monthImages, monthTasks,
+      todayTasks, todayImages,
       adminCount,
-      // Cost
       totalCost: totalCost._sum.cost ?? 0,
       monthCost: monthCost._sum.cost ?? 0,
-      // Task status
       taskStatus: {
         queued: statusMap.queued ?? 0,
         running: statusMap.running ?? 0,
         completed: statusMap.completed ?? 0,
         failed: statusMap.failed ?? 0,
       },
-      // Active users this month
       activeUsers: activeUsers.length,
-      // History
-      totalHistory,
-      monthHistory,
-      // Quota warnings
+      totalHistory, monthHistory,
       quotaWarnings: quotaWarningUsers,
-      // Recent
-      recentTasks: recentTasks.map(t => ({
-        ...t,
-        email: userMap.get(t.userId) ?? 'unknown',
-        createdAt: t.createdAt.toISOString(),
-      })),
-      recentImages: recentImages.map(i => ({
-        ...i,
-        email: userMap.get(i.userId) ?? 'unknown',
-        createdAt: i.createdAt.toISOString(),
-      })),
+      recentTasks: recentTasks.map(t => ({ ...t, email: userMap.get(t.userId) ?? 'unknown', createdAt: t.createdAt.toISOString() })),
+      recentImages: recentImages.map(i => ({ ...i, email: userMap.get(i.userId) ?? 'unknown', createdAt: i.createdAt.toISOString() })),
+      // Daily trends for charts
+      dailyTasks: getDailyBuckets(dailyTasks, 30),
+      dailyImages: getDailyBuckets(dailyImages, 30),
+      dailyCost: getDailyBuckets(dailyCost, 30, (t) => (t as { cost: number }).cost ?? 0),
+      dailyUsers: getDailyBuckets(dailyUsers, 30),
     },
   })
 }

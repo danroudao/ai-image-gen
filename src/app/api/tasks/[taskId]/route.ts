@@ -19,7 +19,7 @@ async function getMaxStorageMB(): Promise<number> {
   }
 }
 
-async function downloadImage(url: string, userId: string): Promise<{ localPath: string; imageId: string }> {
+async function downloadImage(url: string, userId: string, cost: number): Promise<{ localPath: string; imageId: string }> {
   const res = await fetch(url)
   const buffer = Buffer.from(await res.arrayBuffer())
 
@@ -36,6 +36,7 @@ async function downloadImage(url: string, userId: string): Promise<{ localPath: 
       filePath: name,
       prompt: '',
       size: `${buffer.length}B->${webpBuffer.length}B`,
+      cost,
     },
   })
 
@@ -134,9 +135,13 @@ export async function GET(
       const imageIds: string[] = []
       const localPaths: string[] = []
 
+      // calculate cost per image
+      const totalImages = data.data.result.images.reduce((sum: number, img: { url: string[] }) => sum + img.url.length, 0)
+      const costPerImage = totalImages > 0 ? (data.data.cost ?? 0) / totalImages : 0
+
       for (const img of data.data.result.images) {
         for (const url of img.url) {
-          const result = await downloadImage(url, auth.user!.id)
+          const result = await downloadImage(url, auth.user!.id, costPerImage)
           imageIds.push(result.imageId)
           localPaths.push(`/api/images/${result.imageId}`)
         }

@@ -1,5 +1,23 @@
 # 更新日志
 
+## v0.9.0 (2026-07-20) — 管理后台全面升级 + 图表 + 图片库 + 消耗修复
+
+### 新增
+- **📊 仪表盘图表**：引入 recharts，新增每日生成趋势折线图、每日消耗面积图、每日图片柱状图、用户增长趋势图、任务状态环形图
+- **🖼️ 全站图片库** `/admin/images`：缩略图网格、按用户筛选、分页、管理员可删除任意图片
+- **📋 全站历史记录** `/admin/history`：所有用户历史列表、分页、删除
+- **💰 消耗金额修复**：任务总消耗均摊到每张 Image 记录（`costPerImage`），admin/stats 从 `GenerationTask` 聚合消耗
+
+### API 新增
+- `GET /api/admin/history?page=&userId=` — 管理员查看全站历史
+- `GET /api/admin/images?page=&userId=` — 管理员查看全站图片（分页+筛选）
+- `DELETE /api/admin/images?id=` — 管理员删除任意图片
+- `/api/admin/stats` 新增 `dailyTasks`、`dailyImages`、`dailyCost`、`dailyUsers` 每日趋势数据
+
+### 修复
+- `Image.cost` 现在正确写入（之前始终为 0）
+- 管理后台消耗数据现在读取 `GenerationTask._sum.cost`（之前读 `Image._sum.cost`）
+
 ## v0.8.0 (2026-07-20) — 图片迁移 + 存储管理 + WebP 转码
 
 ### 新增
