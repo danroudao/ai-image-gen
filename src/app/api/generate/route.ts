@@ -38,23 +38,30 @@ export async function POST(request: NextRequest) {
     }
 
     // quota check
-    const quota = await prisma.quota.findUnique({ where: { userId: auth.user!.id } })
-    if (quota) {
-      const runningTasks = await prisma.generationTask.count({
-        where: { userId: auth.user!.id, status: 'running' },
+    let quota = await prisma.quota.findUnique({ where: { userId: auth.user!.id } })
+    if (!quota) {
+      quota = await prisma.quota.create({ data: { userId: auth.user!.id } })
+    } else if (new Date().getMonth() !== new Date(quota.monthReset).getMonth() || new Date().getFullYear() !== new Date(quota.monthReset).getFullYear()) {
+      quota = await prisma.quota.update({
+        where: { id: quota.id },
+        data: { usedThisMonth: 0, monthReset: new Date() },
       })
-      if (runningTasks >= quota.maxTasks) {
-        return NextResponse.json(
-          { error: { code: 429, message: `并发超限，当前 ${runningTasks} 个任务进行中`, type: 'quota_exceeded' } },
-          { status: 429 }
-        )
-      }
-      if (quota.usedThisMonth >= quota.monthlyLimit) {
-        return NextResponse.json(
-          { error: { code: 429, message: `本月配额已用尽 (${quota.usedThisMonth}/${quota.monthlyLimit})`, type: 'quota_exceeded' } },
-          { status: 429 }
-        )
-      }
+    }
+
+    const runningTasks = await prisma.generationTask.count({
+      where: { userId: auth.user!.id, status: 'running' },
+    })
+    if (runningTasks >= quota.maxTasks) {
+      return NextResponse.json(
+        { error: { code: 429, message: `并发超限，当前 ${runningTasks} 个任务进行中`, type: 'quota_exceeded' } },
+        { status: 429 }
+      )
+    }
+    if (quota.usedThisMonth >= quota.monthlyLimit) {
+      return NextResponse.json(
+        { error: { code: 429, message: `本月配额已用尽 (${quota.usedThisMonth}/${quota.monthlyLimit})`, type: 'quota_exceeded' } },
+        { status: 429 }
+      )
     }
 
     const res = await fetch(`${API_BASE}/images/generations`, {

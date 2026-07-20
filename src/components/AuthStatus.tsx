@@ -1,7 +1,7 @@
 'use client'
 
 import { useSession, signOut } from 'next-auth/react'
-import { LogOut } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 export function AuthStatus() {
@@ -19,10 +19,17 @@ export function AuthStatus() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <span className="text-xs text-muted-foreground hidden sm:inline">
         {session.user.email}
       </span>
+      <Link
+        href="/settings"
+        className="inline-flex items-center justify-center size-7 rounded-md hover:bg-muted transition-colors cursor-pointer text-muted-foreground hover:text-foreground"
+        title="设置"
+      >
+        <Settings className="h-4 w-4" />
+      </Link>
       {session.user.role === 'admin' && (
         <Link
           href="/admin"

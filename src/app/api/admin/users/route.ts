@@ -46,8 +46,14 @@ export async function POST(request: NextRequest) {
     },
   })
 
+  const sysConfig = await prisma.systemConfig.findUnique({ where: { id: 'default' } })
+
   await prisma.quota.create({
-    data: { userId: user.id },
+    data: {
+      userId: user.id,
+      maxTasks: sysConfig?.defaultMaxTasks ?? 3,
+      monthlyLimit: sysConfig?.defaultMonthlyLimit ?? 500,
+    },
   })
 
   return NextResponse.json({ data: { id: user.id, email: user.email, name: user.name, role: user.role } })

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, ImageIcon, Activity, BarChart3 } from 'lucide-react'
+import { Users, ImageIcon, Activity, BarChart3, Settings } from 'lucide-react'
 
 interface Stats {
   totalUsers: number
@@ -50,6 +50,13 @@ export default function AdminPage() {
           >
             <Users className="h-4 w-4" />
             用户管理
+          </Link>
+          <Link
+            href="/admin/settings"
+            className="inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium border bg-card/80 backdrop-blur-sm hover:bg-muted transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            系统设置
           </Link>
         </div>
       </div>

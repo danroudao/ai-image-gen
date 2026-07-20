@@ -57,3 +57,10 @@ model Quota {
   usedThisMonth Int      @default(0)
   monthReset    DateTime @default(now())
 }
+
+model SystemConfig {
+  id              String @id @default("default")
+  defaultMaxTasks Int    @default(3)
+  defaultMonthlyLimit Int @default(500)
+  allowRegistration Boolean @default(true)
+}
