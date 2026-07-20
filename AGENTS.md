@@ -25,9 +25,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Git
 - remote: `origin` → `git@github.com:danroudao/ai-image-gen.git`
 - committed: v0.1 (initial), v0.2 (parallel gen), v0.3 (UI polish), v0.4 (DB), v0.5 (auth+admin)
-- **Blocked**: `git push` times out (TLS/network issue); local commits exist behind
-- **Last commit**: `5a9c510` — feat: user system + admin dashboard (Stage 2 & 3)
+- **Blocked**: (none)
+- **Last commit**: `5c71298` — feat: user settings, admin system config, quota reset (v0.6.0)[pushed]
 
 ## Todos
-1. Retry `git push` when network recovers to sync v0.4 + v0.5 to remote
-2. Any remaining admin features or user feedback
+- (none — all stages complete and pushed)
