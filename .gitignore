@@ -44,3 +44,6 @@ private/uploads/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+prisma/dev.db
+prisma/dev.db-journal
+deploy/logs/

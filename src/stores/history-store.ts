@@ -17,7 +17,8 @@ async function fetchHistory(): Promise<HistoryEntry[]> {
       cost: (e.cost as number) ?? 0,
       created_at: new Date(e.createdAt as string).getTime(),
     }))
-  } catch {
+  } catch (e) {
+    console.error('fetchHistory error:', e)
     return []
   }
 }
@@ -33,13 +34,17 @@ async function saveEntry(entry: HistoryEntry) {
         cost: entry.cost,
       }),
     })
-  } catch { /* silently fail */ }
+  } catch (e) {
+    console.error('saveEntry error:', e)
+  }
 }
 
 async function removeEntryFromApi(id: string) {
   try {
     await fetch(`/api/history/${id}`, { method: 'DELETE' })
-  } catch { /* silently fail */ }
+  } catch (e) {
+    console.error('removeEntryFromApi error:', e)
+  }
 }
 
 interface HistoryStore {

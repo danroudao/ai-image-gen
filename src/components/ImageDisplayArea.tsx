@@ -25,11 +25,13 @@ interface ImageDisplayAreaProps {
   isGenerating: boolean
   error: string | null
   cost: number | null
+  model?: string
   params: { size: string; resolution: string } | null
   prompt: string
   onReusePrompt: (prompt: string) => void
   onUseAsRef: (url: string) => Promise<void>
   onDeleteImage?: (index: number) => void
+  failedTasks?: { prompt: string; error?: string }[]
 }
 
 export function ImageDisplayArea({
@@ -37,11 +39,13 @@ export function ImageDisplayArea({
   isGenerating,
   error,
   cost,
+  model,
   params,
   prompt,
   onReusePrompt,
   onUseAsRef,
   onDeleteImage,
+  failedTasks,
 }: ImageDisplayAreaProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [copied, setCopied] = useState(false)
@@ -89,6 +93,15 @@ export function ImageDisplayArea({
             ))}
           </div>
           <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+            {model && (
+              <span className={`inline-flex h-5 items-center rounded-full border px-2 text-[10px] font-medium ${
+                model === 'gpt-image-2-official'
+                  ? 'border-blue-500/30 bg-blue-500/10 text-blue-600'
+                  : 'border-muted-foreground/20 bg-muted-foreground/10 text-muted-foreground'
+              }`}>
+                {model === 'gpt-image-2-official' ? 'Official' : 'APIB'}
+              </span>
+            )}
             {params && (
               <>
                 <span className="inline-flex h-5 items-center rounded-full border border-transparent bg-secondary px-2 text-xs font-medium text-secondary-foreground">
@@ -118,6 +131,15 @@ export function ImageDisplayArea({
               </button>
             )}
           </div>
+          {failedTasks && failedTasks.length > 0 && (
+            <div className="space-y-1.5 mt-2">
+              {failedTasks.map((t, i) => (
+                <p key={i} className="text-xs text-destructive/80">
+                  {t.prompt}: {t.error || '未知错误'}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )
     }
@@ -147,7 +169,7 @@ export function ImageDisplayArea({
           <ImageDown className="h-10 w-10" />
         </div>
         <p className="font-medium">等待生成</p>
-        <p className="text-sm">在左侧输入描述词，点击生成按钮开始创作</p>
+        <p className="text-sm">输入描述词，点击生成按钮开始创作</p>
       </div>
     )
   }

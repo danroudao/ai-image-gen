@@ -1,10 +1,11 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useSyncExternalStore, useState } from 'react'
 import { Trash2, Clock, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useHistoryStore } from '@/stores/history-store'
 import { HistoryEntry } from '@/lib/types'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 interface HistoryBarProps {
   onSelect: (entry: HistoryEntry) => void
@@ -42,8 +43,9 @@ function getImageCount(entry: HistoryEntry): number {
 }
 
 export function HistoryBar({ onSelect, onRemove, selectedId }: HistoryBarProps) {
-  const { entries, clearAll } = useHistoryStore()
+  const { entries, loaded, clearAll } = useHistoryStore()
   const mounted = useMounted()
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   return (
     <Card className="bg-card/80 backdrop-blur-sm">
@@ -56,15 +58,19 @@ export function HistoryBar({ onSelect, onRemove, selectedId }: HistoryBarProps) 
           {mounted && entries.length > 0 && (
             <button
               type="button"
-              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-              onClick={clearAll}
+              className="inline-flex items-center gap-1 min-h-[44px] px-3 rounded-md text-xs text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+              onClick={() => setShowClearConfirm(true)}
             >
               <Trash2 className="h-3 w-3" />
               清空
             </button>
           )}
         </div>
-        {!mounted || entries.length === 0 ? (
+        {!mounted || (!loaded && entries.length === 0) ? (
+          <p className="text-xs text-muted-foreground text-center py-4">
+            加载中...
+          </p>
+        ) : mounted && entries.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">
             还没有生成记录
           </p>
@@ -126,6 +132,15 @@ export function HistoryBar({ onSelect, onRemove, selectedId }: HistoryBarProps) 
           </div>
         )}
       </CardContent>
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="清空历史"
+        message="确定要删除所有生成记录吗？此操作不可撤销。"
+        confirmLabel="清空"
+        variant="destructive"
+        onConfirm={() => { clearAll(); setShowClearConfirm(false) }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </Card>
   )
 }

@@ -3,9 +3,9 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 
 export async function POST() {
-  const existing = await prisma.user.findUnique({ where: { email: 'admin@ai-image.local' } })
-  if (existing) {
-    return NextResponse.json({ message: '管理员账号已存在' })
+  const userCount = await prisma.user.count()
+  if (userCount > 0) {
+    return NextResponse.json({ message: '已有用户存在，种子脚本仅限空数据库使用' }, { status: 403 })
   }
 
   const password = await bcrypt.hash('admin123456', 10)

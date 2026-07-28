@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Sparkles } from 'lucide-react'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -26,6 +27,7 @@ export default function LoginPage() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="h-full flex items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
@@ -80,5 +82,6 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

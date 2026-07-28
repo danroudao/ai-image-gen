@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Header } from '@/components/Header'
 import { RequireAuth } from '@/components/RequireAuth'
@@ -32,11 +32,12 @@ async function urlToBase64(url: string): Promise<string> {
   })
 }
 
-async function pollSingle(taskId: string): Promise<{ localImages: string[]; imageIds: string[]; cost: number } | null> {
+async function pollSingle(taskId: string, signal?: AbortSignal): Promise<{ localImages: string[]; imageIds: string[]; cost: number; error?: string } | null> {
   for (let i = 0; i < 120; i++) {
+    if (signal?.aborted) return null
     const res = await queryTask(taskId)
     const task = res.data
-    if (!task) return null
+    if (!task) return res.error?.message ? { localImages: [], imageIds: [], cost: 0, error: res.error.message } : null
     if (task.status === 'completed') {
       if (task.localImages && task.localImages.length > 0) {
         return { localImages: task.localImages, imageIds: (task as { localImageIds?: string[] }).localImageIds ?? [], cost: task.cost ?? 0 }
@@ -46,11 +47,11 @@ async function pollSingle(taskId: string): Promise<{ localImages: string[]; imag
       }
     }
     if (task.status === 'failed') {
-      return null
+      return { localImages: [], imageIds: [], cost: 0, error: task.error?.message || '任务失败' }
     }
     await sleep(2000)
   }
-  return null
+  return { localImages: [], imageIds: [], cost: 0, error: '轮询超时' }
 }
 
 export default function Home() {
@@ -58,21 +59,60 @@ export default function Home() {
   const history = useHistoryStore()
   const form = useFormStore()
   const toast = useToastStore()
-  const [lastParams, setLastParams] = useState<{ size: string; resolution: string } | null>(null)
+  const [lastParams, setLastParams] = useState<{ size: string; resolution: string; model?: string } | null>(null)
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const resumeRunningTasks = useCallback(async () => {
+    const state = useGenerationStore.getState()
+    const runningTasks = state.tasks.filter(t => t.status === 'running' && t.taskId)
+    if (runningTasks.length === 0) return
+
+    const abortController = new AbortController()
+    abortRef.current = abortController
+
+    const results = await Promise.allSettled(
+      runningTasks.map(t => pollSingle(t.taskId, abortController.signal))
+    )
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      const task = runningTasks[i]
+      if (result.status === 'fulfilled' && result.value && result.value.localImages.length > 0) {
+        useGenerationStore.getState().updateTask(task.id, {
+          status: 'completed',
+          images: result.value.localImages,
+          cost: result.value.cost,
+        })
+        useGenerationStore.getState().appendImages(result.value.localImages)
+      } else {
+        const msg = result.status === 'fulfilled' && result.value?.error
+          ? result.value.error
+          : '生成失败'
+        useGenerationStore.getState().updateTask(task.id, { status: 'failed', errorMessage: msg })
+      }
+    }
+  }, [])
 
   useEffect(() => {
     history.loadHistory()
-  }, [])
+    const id = setTimeout(() => resumeRunningTasks(), 0)
+    return () => clearTimeout(id)
+  }, [resumeRunningTasks])
 
   const handleGenerate = useCallback(
     async (params: GenerationParams) => {
+      abortRef.current?.abort()
+      const abortController = new AbortController()
+      abortRef.current = abortController
+
       setSelectedHistoryId(null)
       gen.setViewingHistory(false)
       gen.setError(null)
       gen.setImages([])
+      gen.clearCompletedTasks()
       gen.startGeneration()
-      setLastParams({ size: params.size, resolution: params.resolution })
+      setLastParams({ size: params.size, resolution: params.resolution, model: params.model })
 
       const count = params.n
       const taskCards = Array.from({ length: count }, () => {
@@ -86,6 +126,7 @@ export default function Home() {
           cost: 0,
           size: params.size,
           resolution: params.resolution,
+          model: params.model,
           createdAt: Date.now(),
         })
         return uid
@@ -98,37 +139,44 @@ export default function Home() {
       )
 
       const apiIds: { uid: string; apiTaskId: string }[] = []
+      const submitErrors: string[] = []
       for (let i = 0; i < submissions.length; i++) {
         const sub = submissions[i]
         if (sub.status === 'fulfilled' && !sub.value.error && sub.value.data?.[0]?.task_id) {
           apiIds.push({ uid: taskCards[i], apiTaskId: sub.value.data[0].task_id })
           gen.updateTask(taskCards[i], { taskId: sub.value.data[0].task_id, status: 'running', startedAt: Date.now() })
         } else {
-          gen.updateTask(taskCards[i], { status: 'failed' })
+          const msg = sub.status === 'rejected'
+            ? sub.reason?.message || '提交异常'
+            : sub.value?.error?.message || '提交失败'
+          submitErrors.push(msg)
+          gen.updateTask(taskCards[i], { status: 'failed', errorMessage: msg })
         }
       }
 
       if (apiIds.length === 0) {
-        gen.setError('提交失败')
-        toast.addToast({ message: '提交失败，请检查 API Key 是否正确', type: 'error' })
+        const errorMsg = submitErrors.join('; ')
+        gen.setError(errorMsg)
+        toast.addToast({ message: errorMsg, type: 'error' })
         return
       }
 
       gen.setStatus('submitted')
 
       const pollResults = await Promise.allSettled(
-        apiIds.map(({ apiTaskId }) => pollSingle(apiTaskId))
+        apiIds.map(({ apiTaskId }) => pollSingle(apiTaskId, abortController.signal))
       )
 
       const allImages: string[] = []
       const allImageIds: string[] = []
       let totalCost = 0
       let successCount = 0
+      const pollErrors: string[] = []
 
       for (let i = 0; i < pollResults.length; i++) {
         const result = pollResults[i]
         const uid = apiIds[i].uid
-        if (result.status === 'fulfilled' && result.value) {
+        if (result.status === 'fulfilled' && result.value && result.value.localImages.length > 0) {
           allImages.push(...result.value.localImages)
           allImageIds.push(...result.value.imageIds)
           totalCost += result.value.cost
@@ -140,7 +188,13 @@ export default function Home() {
           })
           successCount++
         } else {
-          gen.updateTask(uid, { status: 'failed' })
+          const msg = result.status === 'fulfilled' && result.value?.error
+            ? result.value.error
+            : result.status === 'rejected'
+              ? result.reason?.message || '请求异常'
+              : '生成失败'
+          pollErrors.push(msg)
+          gen.updateTask(uid, { status: 'failed', errorMessage: msg })
         }
       }
 
@@ -154,7 +208,6 @@ export default function Home() {
         n: count,
         size: params.size,
         resolution: params.resolution,
-        official_fallback: params.official_fallback,
       }
       history.addEntry({
         id: uuidv4(),
@@ -167,8 +220,12 @@ export default function Home() {
       })
 
       if (successCount > 0) {
-        toast.addToast({ message: `生成完成，共 ${allImages.length} 张图片${totalCost > 0 ? `，费用 $${totalCost.toFixed(4)}` : ''}`, type: 'success' })
+        const warnMsg = pollErrors.length > 0 ? `（${pollErrors.length} 个任务失败）` : ''
+        toast.addToast({ message: `生成完成，共 ${allImages.length} 张图片${totalCost > 0 ? `，费用 $${totalCost.toFixed(4)}` : ''}${warnMsg}`, type: 'success' })
       } else {
+        const allErrors = [...submitErrors, ...pollErrors]
+        const errorMsg = allErrors.filter(Boolean).join('; ')
+        gen.setError(errorMsg || '所有任务均生成失败')
         toast.addToast({ message: '所有任务均生成失败', type: 'error' })
       }
     },
@@ -186,7 +243,7 @@ export default function Home() {
         : entry.localImages
       gen.setImages(imgs)
       gen.setCost(entry.cost)
-      setLastParams({ size: entry.params.size, resolution: entry.params.resolution })
+      setLastParams({ size: entry.params.size, resolution: entry.params.resolution, model: entry.params.model })
       if (entry.params.prompt) {
         form.setPrompt(entry.params.prompt)
       }
@@ -258,11 +315,13 @@ export default function Home() {
                   isGenerating={gen.isGenerating}
                   error={gen.error}
                   cost={gen.cost}
+                  model={lastParams?.model}
                   params={lastParams}
                   prompt={form.prompt}
                   onReusePrompt={handleReuseWithFeedback}
                   onUseAsRef={handleUseAsRef}
                   onDeleteImage={handleDeleteImage}
+                  failedTasks={gen.tasks.filter(t => t.status === 'failed').map(t => ({ prompt: t.prompt, error: t.errorMessage }))}
                 />
               </div>
             </div>

@@ -55,7 +55,12 @@ export function TaskFlow() {
 
                 <div className="flex items-center gap-1 mt-1">
                   {isFailed ? (
-                    <span className="text-[10px] text-destructive/80">失败</span>
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[10px] text-destructive/80">失败</span>
+                      {task.errorMessage && (
+                        <span className="text-[9px] text-destructive/60 truncate max-w-[200px]">{task.errorMessage}</span>
+                      )}
+                    </div>
                   ) : isCompleted ? (
                     <span className="text-[10px] text-green-600">
                       {task.images.length} 张
@@ -74,6 +79,13 @@ export function TaskFlow() {
                       </span>
                     </div>
                   )}
+                  <span className={`ml-auto text-[9px] px-1 rounded ${
+                    task.model === 'gpt-image-2-official'
+                      ? 'bg-blue-500/20 text-blue-600'
+                      : 'bg-muted-foreground/10 text-muted-foreground'
+                  }`}>
+                    {task.model === 'gpt-image-2-official' ? 'OF' : 'AP'}
+                  </span>
                 </div>
               </div>
             )

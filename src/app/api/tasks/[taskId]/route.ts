@@ -19,7 +19,7 @@ async function getMaxStorageMB(): Promise<number> {
   }
 }
 
-async function downloadImage(url: string, userId: string, cost: number): Promise<{ localPath: string; imageId: string }> {
+async function downloadImage(url: string, userId: string, cost: number, model: string): Promise<{ localPath: string; imageId: string }> {
   const res = await fetch(url)
   const buffer = Buffer.from(await res.arrayBuffer())
 
@@ -37,6 +37,7 @@ async function downloadImage(url: string, userId: string, cost: number): Promise
       prompt: '',
       size: `${buffer.length}B->${webpBuffer.length}B`,
       cost,
+      model,
     },
   })
 
@@ -125,6 +126,15 @@ export async function GET(
 
   const { taskId } = await params
 
+  // verify task ownership if it exists in our DB
+  const existingTask = await prisma.generationTask.findFirst({ where: { apiTaskId: taskId } })
+  if (existingTask && existingTask.userId !== auth.user!.id && auth.user!.role !== 'admin') {
+    return NextResponse.json(
+      { error: { code: 403, message: '无权访问该任务', type: 'forbidden' } },
+      { status: 403 }
+    )
+  }
+
   try {
     const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
       headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -139,9 +149,11 @@ export async function GET(
       const totalImages = data.data.result.images.reduce((sum: number, img: { url: string[] }) => sum + img.url.length, 0)
       const costPerImage = totalImages > 0 ? (data.data.cost ?? 0) / totalImages : 0
 
+      const taskModel = existingTask?.model ?? 'gpt-image-2'
+
       for (const img of data.data.result.images) {
         for (const url of img.url) {
-          const result = await downloadImage(url, auth.user!.id, costPerImage)
+          const result = await downloadImage(url, auth.user!.id, costPerImage, taskModel)
           imageIds.push(result.imageId)
           localPaths.push(`/api/images/${result.imageId}`)
         }

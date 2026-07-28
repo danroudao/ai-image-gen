@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/api-utils'
 
@@ -18,29 +19,31 @@ export async function GET() {
   })
 }
 
+const settingsSchema = z.object({
+  defaultMaxTasks: z.number().int().min(1).max(1000).optional(),
+  defaultMonthlyLimit: z.number().int().min(1).max(100000).optional(),
+  maxStorageMB: z.number().int().min(50).max(100000).optional(),
+  allowRegistration: z.boolean().optional(),
+})
+
 export async function PUT(request: NextRequest) {
   const admin = await requireAdmin()
   if (admin.error) return admin.error
 
   try {
-    const body = await request.json()
-
-    const data: {
-      defaultMaxTasks?: number
-      defaultMonthlyLimit?: number
-      maxStorageMB?: number
-      allowRegistration?: boolean
-    } = {}
-
-    if (typeof body.defaultMaxTasks === 'number') data.defaultMaxTasks = body.defaultMaxTasks
-    if (typeof body.defaultMonthlyLimit === 'number') data.defaultMonthlyLimit = body.defaultMonthlyLimit
-    if (typeof body.maxStorageMB === 'number') data.maxStorageMB = body.maxStorageMB
-    if (typeof body.allowRegistration === 'boolean') data.allowRegistration = body.allowRegistration
+    const raw = await request.json()
+    const parsed = settingsSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: { code: 400, message: '参数校验失败: ' + parsed.error.issues.map(i => i.message).join('; '), type: 'validation_error' } },
+        { status: 400 }
+      )
+    }
 
     const config = await prisma.systemConfig.upsert({
       where: { id: 'default' },
-      create: { id: 'default', ...data },
-      update: data,
+      create: { id: 'default', ...parsed.data },
+      update: parsed.data,
     })
 
     return NextResponse.json({ data: config })

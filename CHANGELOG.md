@@ -1,5 +1,44 @@
 # 更新日志
 
+## v1.0.0 (2026-07-21) — 双模型切换 + 安全审计 + UI/UX 全面优化
+
+### 新增
+- **🔄 双模型切换**：支持 `gpt-image-2`（APIB 渠道）和 `gpt-image-2-official`（OpenAI 官方），操作面板一键切换
+- **⚙️ Official 高级参数**：选择 Official 模型时显示质量（auto/low/medium/high）、审核强度（默认/宽松）、输出格式（PNG/JPEG/WebP）、压缩率滑块（0-100）
+- **💾 任务状态持久化**：刷新页面后保留进行中的任务区块，自动恢复轮询
+- **🖼️ 管理后台图片灯箱**：`/admin/images` 点击缩略图打开灯箱，显示提示词、模型标签、用户、费用、时间，支持键盘导航
+- **🏷️ 模型标签**：图片区、任务卡片、管理后台图片库均显示模型 badge（APIB / Official）
+- **✅ 确认弹窗组件**：自定义 ConfirmDialog 替代浏览器 `confirm()`，覆盖历史清空、用户删除、图片删除
+- **♿ 无障碍改进**：Toast 加入 `role="alert"` 和 `aria-live`，关闭按钮扩大触摸区域
+
+### 安全
+- **🔒 IDOR 越权修复**：`/api/images/[id]` 和 `/api/images/[id]/thumbnail` 加入 `userId` 所有权检查
+- **🔒 任务越权修复**：`/api/tasks/[taskId]` 加入归属验证
+- **🔒 Seed 端点保护**：仅空数据库时可调用，已存在用户时返回 403
+- **🔒 Zod 输入校验**：6 个 POST/PUT 端点接入 Zod schema（`/api/history`、`/api/admin/settings`、`/api/admin/users`、`/api/admin/users/[id]`、`/api/user/settings`）
+- **🔒 API 响应验证**：`api.ts` 封装 `handleResponse`，非 2xx 状态抛 `ApiError`
+- **🔒 Cookie Secure**：改为动态判断（`NEXTAUTH_URL` 为 HTTPS 时自动启用）
+
+### 错误处理
+- **⚠️ 生成失败详情**：ImageDisplayArea 显示失败任务列表（prompt + 错误原因），TaskFlow 卡片显示 errorMessage
+- **⚠️ 错误隔离**：上一轮失败任务在新生成时自动清除（`clearCompletedTasks`）
+- **⚠️ API 错误传递**：从 API 响应中提取错误消息展示给用户
+- **⚠️ AbortController**：页面卸载时自动取消轮询
+
+### UI/UX
+- **📱 触摸目标优化**：Header 图标按钮、登录按钮统一 `size-10`/`min-h-[44px]`
+- **🎨 主题切换**：三态图标（Moon / Sun / Monitor），tooltip 随状态变化
+- **🔄 数据库迁移**：`Image` + `GenerationTask` 增加 `model` 字段
+- **📄 DEPLOY.md**：运维手册从 README 独立
+- **🗑️ 管理后台**：图片卡片删除按钮从 `size-7` 提升至 `size-10`
+
+### 修复
+- 修复 `official_fallback` 残留字段导致的编译错误
+- 修复 `trustHost` 移除后登录 500 的问题
+- 修复生成失败错误信息与下一批图片混合显示的问题
+- 修复 `z.record()` Zod v4 API 不兼容问题
+- 修复空状态文案"在左侧"在移动端误导的问题
+
 ## v0.9.0 (2026-07-20) — 管理后台全面升级 + 图表 + 图片库 + 消耗修复
 
 ### 新增

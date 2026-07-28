@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Check, ChevronDown } from 'lucide-react'
+import { Sparkles, Check, ChevronDown, Cpu, Image as ImageIcon, Sliders } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { ImageUploader } from './ImageUploader'
-import { AspectRatio, Resolution, GenerationParams } from '@/lib/types'
+import { AspectRatio, Resolution, GenerationParams, ModelName } from '@/lib/types'
 import { useFormStore } from '@/stores/form-store'
 
 const ASPECT_RATIOS: { value: AspectRatio | 'auto'; label: string }[] = [
@@ -33,13 +33,27 @@ interface OperationPanelProps {
   isGenerating?: boolean
 }
 
-export function OperationPanel({ onGenerate }: OperationPanelProps) {
+const MODELS: { value: ModelName; label: string; desc: string }[] = [
+  { value: 'gpt-image-2', label: 'GPT-Image-2', desc: 'APIB 渠道' },
+  { value: 'gpt-image-2-official', label: 'Official', desc: 'OpenAI 官方' },
+]
+
+const QUALITY_OPTS = ['auto', 'low', 'medium', 'high'] as const
+const FORMAT_OPTS = ['png', 'jpeg', 'webp'] as const
+
+export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps) {
   const { prompt, setPrompt, refImages, setRefImages } = useFormStore()
+  const [model, setModel] = useState<ModelName>('gpt-image-2')
   const [size, setSize] = useState<string>('1:1')
   const [resolution, setResolution] = useState<Resolution>('1k')
   const [count, setCount] = useState(1)
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const isOfficial = model === 'gpt-image-2-official'
+  const [quality, setQuality] = useState<string>('auto')
+  const [moderation, setModeration] = useState<string>('auto')
+  const [outputFormat, setOutputFormat] = useState<string>('png')
+  const [outputCompression, setOutputCompression] = useState(80)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -54,12 +68,18 @@ export function OperationPanel({ onGenerate }: OperationPanelProps) {
   const handleGenerate = () => {
     if (!prompt.trim()) return
     const params: GenerationParams = {
-      model: 'gpt-image-2',
+      model,
       prompt: prompt.trim(),
       n: count,
       size,
       resolution,
       image_urls: refImages.length > 0 ? refImages.map((img) => img.data) : undefined,
+      ...(isOfficial ? {
+        quality: quality as 'auto' | 'low' | 'medium' | 'high',
+        moderation: moderation as 'auto' | 'low',
+        output_format: outputFormat as 'png' | 'jpeg' | 'webp',
+        ...(outputFormat !== 'png' ? { output_compression: outputCompression } : {}),
+      } : {}),
     }
     onGenerate(params)
   }
@@ -69,6 +89,124 @@ export function OperationPanel({ onGenerate }: OperationPanelProps) {
   return (
     <Card className="h-full bg-card/80 backdrop-blur-sm">
       <CardContent className="p-4 space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">生成模型</label>
+          <div className="flex gap-2">
+            {MODELS.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                className={`flex-1 h-8 rounded-lg text-sm font-medium transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  model === m.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'border border-input bg-background hover:bg-muted text-foreground'
+                }`}
+                onClick={() => {
+                  setModel(m.value)
+                  if (m.value === 'gpt-image-2-official' && count > 4) setCount(4)
+                  if (m.value === 'gpt-image-2' && count < 1) setCount(1)
+                }}
+              >
+                <Cpu className="h-3.5 w-3.5" />
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground/60">
+            {MODELS.find(m => m.value === model)?.desc}
+          </p>
+        </div>
+
+        {isOfficial && (
+          <div className="space-y-3 border border-dashed border-muted-foreground/20 rounded-lg p-3 bg-muted/20">
+            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Sliders className="h-3 w-3" />
+              高级参数
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-medium text-muted-foreground">图片质量</label>
+              <div className="flex gap-1.5">
+                {QUALITY_OPTS.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className={`flex-1 h-7 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                      quality === q
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'border border-input bg-background hover:bg-muted text-foreground'
+                    }`}
+                    onClick={() => setQuality(q)}
+                  >
+                    {q === 'auto' ? '自动' : q.charAt(0).toUpperCase() + q.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-medium text-muted-foreground">审核强度</label>
+              <div className="flex gap-1.5">
+                {['auto', 'low'].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`flex-1 h-7 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                      moderation === v
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'border border-input bg-background hover:bg-muted text-foreground'
+                    }`}
+                    onClick={() => setModeration(v)}
+                  >
+                    {v === 'auto' ? '默认' : '宽松'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-medium text-muted-foreground">输出格式</label>
+              <div className="flex gap-1.5">
+                {FORMAT_OPTS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={`flex-1 h-7 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                      outputFormat === f
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'border border-input bg-background hover:bg-muted text-foreground'
+                    }`}
+                    onClick={() => setOutputFormat(f)}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {outputFormat !== 'png' && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-medium text-muted-foreground">
+                  压缩率: {outputCompression}
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={outputCompression}
+                  onChange={(e) => setOutputCompression(Number(e.target.value))}
+                  className="w-full accent-primary h-1.5"
+                />
+                <div className="flex justify-between text-[9px] text-muted-foreground/60">
+                  <span>无损</span>
+                  <span>高压缩</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">图片比例</label>
           <div className="relative" ref={dropdownRef}>
@@ -129,15 +267,18 @@ export function OperationPanel({ onGenerate }: OperationPanelProps) {
           <input
             type="range"
             min={1}
-            max={10}
+            max={isOfficial ? 4 : 10}
             step={1}
             value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setCount(v)
+            }}
             className="w-full accent-primary"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>1</span>
-            <span>10</span>
+            <span>{isOfficial ? '4' : '10'}</span>
           </div>
         </div>
 

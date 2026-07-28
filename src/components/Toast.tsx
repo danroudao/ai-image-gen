@@ -20,19 +20,21 @@ export function ToastContainer() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 max-w-sm">
+    <div className="fixed bottom-6 right-6 left-6 md:left-auto z-[100] flex flex-col gap-2 max-w-sm">
       {toasts.map((t) => {
         const Icon = icons[t.type]
         return (
           <div
             key={t.id}
+            role="alert"
+            aria-live="polite"
             className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border shadow-lg backdrop-blur-sm text-sm animate-in slide-in-from-right ${colors[t.type]}`}
           >
             <Icon className="h-4 w-4 shrink-0" />
             <span className="flex-1">{t.message}</span>
             <button
               type="button"
-              className="shrink-0 opacity-60 hover:opacity-100 cursor-pointer"
+              className="shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center opacity-60 hover:opacity-100 cursor-pointer"
               onClick={() => removeToast(t.id)}
             >
               <X className="h-3.5 w-3.5" />

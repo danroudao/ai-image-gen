@@ -1,3 +1,5 @@
+export type ModelName = 'gpt-image-2' | 'gpt-image-2-official'
+
 export type AspectRatio =
   | 'auto' | '1:1' | '3:2' | '2:3' | '4:3' | '3:4'
   | '5:4' | '4:5' | '16:9' | '9:16' | '2:1' | '1:2'
@@ -14,13 +16,16 @@ export type TaskStatus =
   | 'cancelled'
 
 export interface GenerationParams {
-  model: string
+  model: ModelName
   prompt: string
   n: number
   size: string
   resolution: Resolution
   image_urls?: string[]
-  official_fallback?: boolean
+  quality?: 'auto' | 'low' | 'medium' | 'high'
+  moderation?: 'auto' | 'low'
+  output_format?: 'png' | 'jpeg' | 'webp'
+  output_compression?: number
 }
 
 export interface ApiError {
@@ -84,8 +89,10 @@ export interface TaskItem {
   cost: number
   size: string
   resolution: string
+  model: ModelName
   createdAt: number
   startedAt?: number
+  errorMessage?: string
 }
 
 export interface GenerationState {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 interface User {
   id: string
@@ -20,6 +21,7 @@ export default function UsersPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
 
   const loadUsers = () => {
     fetch('/api/admin/users')
@@ -45,8 +47,8 @@ export default function UsersPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定删除此用户？')) return
     await fetch(`/api/admin/users/${id}`, { method: 'DELETE' })
+    setDeleteTarget(null)
     loadUsers()
   }
 
@@ -127,8 +129,8 @@ export default function UsersPage() {
               </div>
               <button
                 type="button"
-                className="size-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                onClick={() => handleDelete(u.id)}
+                className="size-10 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                onClick={() => setDeleteTarget(u)}
                 title="删除"
               >
                 <Trash2 className="h-4 w-4" />
@@ -137,6 +139,15 @@ export default function UsersPage() {
           ))}
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="删除用户"
+        message={`确定要删除用户 "${deleteTarget?.name || deleteTarget?.email}" 吗？该用户的所有图片和记录将被一并删除。`}
+        confirmLabel="删除"
+        variant="destructive"
+        onConfirm={() => deleteTarget && handleDelete(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

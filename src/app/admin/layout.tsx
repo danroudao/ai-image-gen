@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
@@ -17,5 +18,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <div className="h-full flex items-center justify-center text-sm text-muted-foreground">加载中...</div>
   }
 
-  return <>{children}</>
+  return <ErrorBoundary>{children}</ErrorBoundary>
 }

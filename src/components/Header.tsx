@@ -1,6 +1,6 @@
 'use client'
 
-import { Moon, Sun } from 'lucide-react'
+import { Moon, Sun, Monitor } from 'lucide-react'
 import { useSettingsStore } from '@/stores/settings-store'
 import { AuthStatus } from './AuthStatus'
 
@@ -13,7 +13,10 @@ export function Header() {
     else setTheme('light')
   }
 
-  const Icon = theme === 'dark' ? Sun : Moon
+  const iconMap = { light: Moon, dark: Sun, system: Monitor }
+  const titleMap = { light: '切换到暗色', dark: '跟随系统', system: '切换到亮色' }
+  const Icon = iconMap[theme]
+  const title = titleMap[theme]
 
   return (
     <header className="flex items-center justify-between border-b px-3 md:px-4 py-2 md:py-3 bg-background/80 backdrop-blur-sm">
@@ -27,9 +30,9 @@ export function Header() {
         <AuthStatus />
         <button
           type="button"
-          className="inline-flex items-center justify-center size-8 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+          className="inline-flex items-center justify-center size-10 rounded-lg hover:bg-muted transition-colors cursor-pointer"
           onClick={toggleTheme}
-          title="切换主题"
+          title={title}
         >
           <Icon className="h-5 w-5" />
         </button>

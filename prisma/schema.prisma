@@ -25,6 +25,7 @@ model Image {
   size      String?
   cost      Float    @default(0)
   taskId    String?
+  model     String   @default("gpt-image-2")
   createdAt DateTime @default(now())
 }
 
@@ -33,6 +34,7 @@ model GenerationTask {
   userId      String    @default("")
   apiTaskId   String?
   prompt      String
+  model       String    @default("gpt-image-2")
   status      String    @default("queued")
   cost        Float     @default(0)
   imageCount  Int       @default(0)

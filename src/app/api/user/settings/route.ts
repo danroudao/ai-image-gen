@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-utils'
@@ -34,24 +35,38 @@ export async function GET() {
   })
 }
 
+const userSettingsSchema = z.object({
+  name: z.string().max(100).optional(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(6).max(100).optional(),
+})
+
 export async function PUT(request: NextRequest) {
   const auth = await requireAuth()
   if (auth.error) return auth.error
 
-  const body = await request.json()
+  const raw = await request.json()
+  const parsed = userSettingsSchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: { code: 400, message: '参数校验失败: ' + parsed.error.issues.map(i => i.message).join('; '), type: 'validation_error' } },
+      { status: 400 }
+    )
+  }
+
   const updateData: Record<string, unknown> = {}
 
-  if (body.name !== undefined) updateData.name = body.name
+  if (parsed.data.name !== undefined) updateData.name = parsed.data.name
 
-  if (body.currentPassword && body.newPassword) {
+  if (parsed.data.currentPassword && parsed.data.newPassword) {
     const user = await prisma.user.findUnique({ where: { id: auth.user!.id } })
-    if (!user || !(await bcrypt.compare(body.currentPassword, user.password))) {
+    if (!user || !(await bcrypt.compare(parsed.data.currentPassword, user.password))) {
       return NextResponse.json(
         { error: { code: 400, message: '当前密码错误', type: 'validation_error' } },
         { status: 400 }
       )
     }
-    updateData.password = await bcrypt.hash(body.newPassword, 10)
+    updateData.password = await bcrypt.hash(parsed.data.newPassword, 10)
   }
 
   if (Object.keys(updateData).length > 0) {

@@ -13,7 +13,9 @@ export async function GET(
   if (auth.error) return auth.error
 
   const { id } = await params
-  const image = await prisma.image.findUnique({ where: { id } })
+  const image = await prisma.image.findUnique({
+    where: auth.user!.role === 'admin' ? { id } : { id, userId: auth.user!.id },
+  })
   if (!image) {
     return NextResponse.json({ error: { code: 404, message: '图片不存在', type: 'not_found' } }, { status: 404 })
   }

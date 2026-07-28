@@ -6,13 +6,16 @@ import { requireAuth } from '@/lib/api-utils'
 const API_BASE = 'https://api.apib.ai/v1'
 
 const bodySchema = z.object({
-  model: z.string().min(1),
+  model: z.enum(['gpt-image-2', 'gpt-image-2-official']),
   prompt: z.string().min(1).max(2000),
   n: z.number().int().min(1).max(10).default(1),
   size: z.string().optional(),
   resolution: z.enum(['1k', '2k', '4k']).optional(),
   image_urls: z.array(z.string()).max(16).optional(),
-  official_fallback: z.boolean().optional(),
+  quality: z.enum(['auto', 'low', 'medium', 'high']).optional(),
+  moderation: z.enum(['auto', 'low']).optional(),
+  output_format: z.enum(['png', 'jpeg', 'webp']).optional(),
+  output_compression: z.number().int().min(0).max(100).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -82,6 +85,7 @@ export async function POST(request: NextRequest) {
             userId: auth.user!.id,
             apiTaskId: task.task_id,
             prompt: parsed.data.prompt,
+            model: parsed.data.model,
             status: 'running',
           },
         }).catch(() => {})
