@@ -21,6 +21,14 @@ const historyPostSchema = z.object({
   cost: z.number().min(0).optional(),
 })
 
+export async function DELETE() {
+  const auth = await requireAuth()
+  if (auth.error) return auth.error
+
+  await prisma.historyEntry.deleteMany({ where: { userId: auth.user!.id } })
+  return NextResponse.json({ message: '已清空' })
+}
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth()
   if (auth.error) return auth.error

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, KeyRound, ShieldCheck } from 'lucide-react'
+import { useToastStore } from '@/stores/toast-store'
 
 interface UserDetail {
   id: string
@@ -17,9 +18,12 @@ interface UserDetail {
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const toast = useToastStore()
   const [user, setUser] = useState<UserDetail | null>(null)
   const [maxTasks, setMaxTasks] = useState(3)
   const [monthlyLimit, setMonthlyLimit] = useState(500)
+  const [newPassword, setNewPassword] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/users/${id}`)
@@ -32,13 +36,39 @@ export default function UserDetailPage() {
       .catch(() => {})
   }, [id])
 
-  const handleSave = async () => {
-    await fetch(`/api/admin/users/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ maxTasks, monthlyLimit }),
-    })
-    router.push('/admin/users')
+  const handleSave = async (withPassword: boolean) => {
+    if (withPassword && !newPassword) {
+      toast.addToast({ message: '请先输入新密码', type: 'info' })
+      return
+    }
+    if (withPassword && newPassword.length < 6) {
+      toast.addToast({ message: '密码至少 6 位', type: 'error' })
+      return
+    }
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = { maxTasks, monthlyLimit }
+      if (withPassword) body.password = newPassword
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.addToast({
+          message: withPassword ? '密码已重置' : '已保存',
+          type: 'success',
+        })
+        if (withPassword) setNewPassword('')
+      } else {
+        toast.addToast({ message: data.error?.message ?? '保存失败', type: 'error' })
+      }
+    } catch {
+      toast.addToast({ message: '保存失败', type: 'error' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (!user) {
@@ -106,12 +136,41 @@ export default function UserDetailPage() {
 
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
-            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50"
+            onClick={() => handleSave(false)}
           >
             <Save className="h-4 w-4" />
-            保存
+            保存额度配置
           </button>
+        </div>
+
+        <div className="rounded-lg border bg-card/80 backdrop-blur-sm p-4 space-y-4">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-amber-500" />
+            重置密码
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            用户忘记密码时，在此设置新密码（至少 6 位）
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="输入新密码"
+              className="flex-1 min-w-[180px] h-8 rounded-md border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+            <button
+              type="button"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium border border-amber-500/40 text-amber-600 hover:bg-amber-500/10 transition-colors cursor-pointer disabled:opacity-50"
+              onClick={() => handleSave(true)}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              重置密码
+            </button>
+          </div>
         </div>
       </div>
     </div>

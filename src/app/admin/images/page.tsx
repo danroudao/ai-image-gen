@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Trash2, ChevronLeft, ChevronRight, ExternalLink, Filter, X, Download } from 'lucide-react'
+import { ArrowLeft, Trash2, ChevronLeft, ChevronRight, Filter, X, Download } from 'lucide-react'
 import { useToastStore } from '@/stores/toast-store'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { SafeImage } from '@/components/SafeImage'
 
 interface AdminImage {
   id: string
@@ -35,16 +36,16 @@ export default function AdminImagesPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const toast = useToastStore()
 
-  const load = (p: number) => {
+  const load = useCallback((p: number) => {
     const params = new URLSearchParams({ page: String(p) })
     if (filterUser) params.set('userId', filterUser)
     fetch(`/api/admin/images?${params}`)
       .then(r => r.json())
       .then(d => { setImages(d.data ?? []); setTotal(d.total); setUsers(d.users ?? []) })
       .catch(() => {})
-  }
+  }, [filterUser])
 
-  useEffect(() => { load(page) }, [page, filterUser])
+  useEffect(() => { load(page) }, [load, page])
 
   const handleDelete = async (id: string) => {
     await fetch(`/api/admin/images?id=${id}`, { method: 'DELETE' })
@@ -100,7 +101,7 @@ export default function AdminImagesPage() {
                 className="block w-full aspect-square bg-muted cursor-pointer"
                 onClick={() => setLightboxIdx(idx)}
               >
-                <img src={img.thumbnailUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                <SafeImage src={img.thumbnailUrl} alt="" className="w-full h-full object-cover" />
               </button>
               <button
                 type="button"
@@ -194,7 +195,7 @@ export default function AdminImagesPage() {
           )}
 
           <div className="flex flex-col items-center gap-4 max-w-[90vw] max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            <img
+            <SafeImage
               src={images[lightboxIdx].url}
               alt=""
               className="max-h-[65vh] max-w-[90vw] object-contain rounded-lg"

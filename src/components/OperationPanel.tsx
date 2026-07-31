@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Check, ChevronDown, Cpu, Image as ImageIcon, Sliders } from 'lucide-react'
+import { Sparkles, Check, ChevronDown, Cpu, Sliders, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { ImageUploader } from './ImageUploader'
 import { AspectRatio, Resolution, GenerationParams, ModelName } from '@/lib/types'
@@ -294,10 +294,30 @@ export function OperationPanel({ onGenerate, isGenerating }: OperationPanelProps
             placeholder="描述你想要的画面，支持中英文，越详细效果越好..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault()
+                handleGenerate()
+              }
+            }}
             rows={5}
+            maxLength={2000}
             className="flex w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none resize-none"
           />
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+            <span>Ctrl + Enter 快捷生成</span>
+            <span className={`tabular-nums ${prompt.length > 2000 ? 'text-destructive' : ''}`}>
+              {prompt.length}/2000
+            </span>
+          </div>
         </div>
+
+        {isGenerating && (
+          <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+            <span className="text-xs text-primary/90">生成进行中，可继续提交新批次</span>
+          </div>
+        )}
 
         <button
           type="button"

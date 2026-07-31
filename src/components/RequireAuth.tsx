@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -23,7 +23,13 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   if (status === 'loading') {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-pulse text-sm text-muted-foreground">加载中...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-primary/20 blur-lg" />
+            <Loader2 className="relative h-8 w-8 animate-spin text-primary" />
+          </div>
+          <div className="animate-pulse text-sm text-muted-foreground">正在检查登录状态...</div>
+        </div>
       </div>
     )
   }

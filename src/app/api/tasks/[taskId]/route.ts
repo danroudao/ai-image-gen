@@ -19,7 +19,7 @@ async function getMaxStorageMB(): Promise<number> {
   }
 }
 
-async function downloadImage(url: string, userId: string, cost: number, model: string): Promise<{ localPath: string; imageId: string }> {
+async function downloadImage(url: string, userId: string, cost: number, model: string, taskId: string): Promise<{ localPath: string; imageId: string }> {
   const res = await fetch(url)
   const buffer = Buffer.from(await res.arrayBuffer())
 
@@ -33,6 +33,7 @@ async function downloadImage(url: string, userId: string, cost: number, model: s
   const image = await prisma.image.create({
     data: {
       userId,
+      taskId,
       filePath: name,
       prompt: '',
       size: `${buffer.length}B->${webpBuffer.length}B`,
@@ -46,14 +47,16 @@ async function downloadImage(url: string, userId: string, cost: number, model: s
 
 async function getDirSize(dir: string): Promise<number> {
   const files = await fs.readdir(dir)
-  let total = 0
-  for (const f of files) {
-    try {
-      const stat = await fs.stat(path.join(dir, f))
-      total += stat.size
-    } catch { /* skip */ }
-  }
-  return total
+  const stats = await Promise.all(
+    files.map(async (f) => {
+      try {
+        return (await fs.stat(path.join(dir, f))).size
+      } catch {
+        return 0
+      }
+    })
+  )
+  return stats.reduce((a, b) => a + b, 0)
 }
 
 async function cleanupOldImages() {
@@ -62,14 +65,21 @@ async function cleanupOldImages() {
     const maxStorageMB = await getMaxStorageMB()
     const maxBytes = maxStorageMB * 1024 * 1024
 
-    // delete DB records with no corresponding file
+    // delete DB records with no corresponding file (batched)
     const allImages = await prisma.image.findMany({ select: { id: true, filePath: true } })
-    for (const img of allImages) {
-      try {
-        await fs.access(path.join(UPLOAD_DIR, img.filePath))
-      } catch {
-        await prisma.image.delete({ where: { id: img.id } }).catch(() => {})
-      }
+    const missing = await Promise.all(
+      allImages.map(async (img) => {
+        try {
+          await fs.access(path.join(UPLOAD_DIR, img.filePath))
+          return null
+        } catch {
+          return img.id
+        }
+      })
+    )
+    const missingIds = missing.filter(Boolean) as string[]
+    if (missingIds.length > 0) {
+      await prisma.image.deleteMany({ where: { id: { in: missingIds } } })
     }
 
     // check total size
@@ -135,6 +145,76 @@ export async function GET(
     )
   }
 
+  // --- idempotency: task already completed → return cached images without re-downloading
+  // (prevents duplicate images and double quota billing on re-poll / page reload)
+  if (existingTask?.status === 'completed') {
+    const cached = await prisma.image.findMany({
+      where: { taskId: existingTask.id },
+      select: { id: true },
+    })
+    if (cached.length > 0) {
+      return NextResponse.json({
+        code: 0,
+        data: {
+          id: taskId,
+          status: 'completed',
+          cost: existingTask.cost,
+          localImages: cached.map((img) => `/api/images/${img.id}`),
+          localImageIds: cached.map((img) => img.id),
+        },
+      })
+    }
+  }
+
+  // --- concurrency guard: atomically claim the download step so concurrent
+  // polls of the same task cannot download the images multiple times
+  const claimed = await prisma.generationTask.updateMany({
+    where: { apiTaskId: taskId, status: { not: 'completed' } },
+    data: { status: 'processing' },
+  }).catch(() => ({ count: 0 }))
+
+  if (claimed.count === 0 && existingTask) {
+    // Another request is downloading (or already completed it). Wait briefly
+    // for the downloader to finish, then serve the cached images.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 500))
+      const cached = await prisma.image.findMany({
+        where: { taskId: existingTask.id },
+        select: { id: true },
+      })
+      if (cached.length > 0) {
+        return NextResponse.json({
+          code: 0,
+          data: {
+            id: taskId,
+            status: 'completed',
+            cost: existingTask.cost,
+            localImages: cached.map((img) => `/api/images/${img.id}`),
+            localImageIds: cached.map((img) => img.id),
+          },
+        })
+      }
+    }
+    // downloader may have failed — fall through to re-download, but first
+    // re-check in case the downloader just finished
+    const recheck = await prisma.image.findMany({
+      where: { taskId: existingTask.id },
+      select: { id: true },
+    })
+    if (recheck.length > 0) {
+      return NextResponse.json({
+        code: 0,
+        data: {
+          id: taskId,
+          status: 'completed',
+          cost: existingTask.cost,
+          localImages: recheck.map((img) => `/api/images/${img.id}`),
+          localImageIds: recheck.map((img) => img.id),
+        },
+      })
+    }
+  }
+
   try {
     const res = await fetch(`${API_BASE}/tasks/${taskId}`, {
       headers: { 'Authorization': `Bearer ${apiKey}` },
@@ -142,22 +222,31 @@ export async function GET(
     const data = await res.json()
 
     if (res.ok && data.data?.status === 'completed' && data.data?.result?.images) {
-      const imageIds: string[] = []
-      const localPaths: string[] = []
-
-      // calculate cost per image
-      const totalImages = data.data.result.images.reduce((sum: number, img: { url: string[] }) => sum + img.url.length, 0)
-      const costPerImage = totalImages > 0 ? (data.data.cost ?? 0) / totalImages : 0
-
-      const taskModel = existingTask?.model ?? 'gpt-image-2'
-
-      for (const img of data.data.result.images) {
-        for (const url of img.url) {
-          const result = await downloadImage(url, auth.user!.id, costPerImage, taskModel)
-          imageIds.push(result.imageId)
-          localPaths.push(`/api/images/${result.imageId}`)
+      // clean up partial downloads left by an interrupted previous poll
+      if (existingTask) {
+        const partial = await prisma.image.findMany({
+          where: { taskId: existingTask.id },
+          select: { id: true, filePath: true },
+        })
+        if (partial.length > 0) {
+          await Promise.all(
+            partial.map((p) => fs.unlink(path.join(UPLOAD_DIR, p.filePath)).catch(() => {}))
+          )
+          await prisma.image.deleteMany({ where: { taskId: existingTask.id } })
         }
       }
+
+      // download all images in parallel
+      const urls: string[] = (data.data.result.images as { url: string[] }[]).flatMap((img) => img.url)
+      const costPerImage = urls.length > 0 ? (data.data.cost ?? 0) / urls.length : 0
+      const taskModel = existingTask?.model ?? 'gpt-image-2'
+      const taskDbId = existingTask?.id ?? ''
+
+      const results = await Promise.all(
+        urls.map((url) => downloadImage(url, auth.user!.id, costPerImage, taskModel, taskDbId))
+      )
+      const imageIds = results.map((r) => r.imageId)
+      const localPaths = results.map((r) => `/api/images/${r.imageId}`)
 
       await cleanupOldImages()
 

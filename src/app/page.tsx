@@ -61,36 +61,61 @@ export default function Home() {
   const toast = useToastStore()
   const [lastParams, setLastParams] = useState<{ size: string; resolution: string; model?: string } | null>(null)
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  // Track concurrently running generation rounds — repeated submissions run in parallel
+  // instead of aborting the previous batch (which would waste money and lose images).
+  const roundsRef = useRef(0)
+  const sessionCostRef = useRef(0)
+  // Re-entrancy guard: the effect below must only ever run ONE resume pass.
+  // (history store objects are recreated on every set, so they must NOT be
+  //  dependency-array members — that would loop the effect forever.)
+  const resumingRef = useRef(false)
 
   const resumeRunningTasks = useCallback(async () => {
-    const state = useGenerationStore.getState()
-    const runningTasks = state.tasks.filter(t => t.status === 'running' && t.taskId)
-    if (runningTasks.length === 0) return
+    if (resumingRef.current) return
+    resumingRef.current = true
+    try {
+      const state = useGenerationStore.getState()
+      const runningTasks = state.tasks.filter(t => t.status === 'running' && t.taskId)
+      if (runningTasks.length === 0) return
 
-    const abortController = new AbortController()
-    abortRef.current = abortController
+      const abortController = new AbortController()
 
-    const results = await Promise.allSettled(
-      runningTasks.map(t => pollSingle(t.taskId, abortController.signal))
-    )
+      const results = await Promise.allSettled(
+        runningTasks.map(t => pollSingle(t.taskId, abortController.signal))
+      )
 
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i]
-      const task = runningTasks[i]
-      if (result.status === 'fulfilled' && result.value && result.value.localImages.length > 0) {
-        useGenerationStore.getState().updateTask(task.id, {
-          status: 'completed',
-          images: result.value.localImages,
-          cost: result.value.cost,
-        })
-        useGenerationStore.getState().appendImages(result.value.localImages)
-      } else {
-        const msg = result.status === 'fulfilled' && result.value?.error
-          ? result.value.error
-          : '生成失败'
-        useGenerationStore.getState().updateTask(task.id, { status: 'failed', errorMessage: msg })
+      let addedCost = 0
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i]
+        const task = runningTasks[i]
+        if (result.status === 'fulfilled' && result.value && result.value.localImages.length > 0) {
+          addedCost += result.value.cost
+          useGenerationStore.getState().updateTask(task.id, {
+            status: 'completed',
+            images: result.value.localImages,
+            cost: result.value.cost,
+          })
+          useGenerationStore.getState().appendImages(result.value.localImages)
+        } else if (result.status === 'fulfilled' && result.value === null) {
+          // poll was aborted (a new generation started) — leave task state untouched
+          continue
+        } else {
+          const msg = result.status === 'fulfilled' && result.value?.error
+            ? result.value.error
+            : '生成失败'
+          useGenerationStore.getState().updateTask(task.id, { status: 'failed', errorMessage: msg })
+        }
       }
+      if (addedCost > 0) {
+        const state = useGenerationStore.getState()
+        state.setCost((state.cost ?? 0) + addedCost)
+      }
+      // if nothing is left to run, make sure the spinner/progress goes away
+      const st = useGenerationStore.getState()
+      const hasActive = st.tasks.some((t) => t.status === 'running' || t.status === 'queued')
+      if (!hasActive) st.setGenerating(false)
+    } finally {
+      resumingRef.current = false
     }
   }, [])
 
@@ -98,19 +123,29 @@ export default function Home() {
     history.loadHistory()
     const id = setTimeout(() => resumeRunningTasks(), 0)
     return () => clearTimeout(id)
+    // NOTE: `history` is intentionally NOT a dependency — the zustand store
+    // object is recreated on every set, so including it would re-run this
+    // effect forever (each run re-triggers resumeRunningTasks → duplicate
+    // polling/downloads and unbounded image growth).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeRunningTasks])
 
   const handleGenerate = useCallback(
     async (params: GenerationParams) => {
-      abortRef.current?.abort()
       const abortController = new AbortController()
-      abortRef.current = abortController
+      const isFirstRound = roundsRef.current === 0
+      roundsRef.current += 1
+      if (isFirstRound) sessionCostRef.current = 0
 
       setSelectedHistoryId(null)
       gen.setViewingHistory(false)
       gen.setError(null)
-      gen.setImages([])
-      gen.clearCompletedTasks()
+      // Clear previous images/task cards only when starting a fresh session.
+      // While a batch is still running, new submissions run in parallel and accumulate.
+      if (isFirstRound) {
+        gen.setImages([])
+        gen.clearCompletedTasks()
+      }
       gen.startGeneration()
       setLastParams({ size: params.size, resolution: params.resolution, model: params.model })
 
@@ -155,8 +190,16 @@ export default function Home() {
       }
 
       if (apiIds.length === 0) {
+        roundsRef.current -= 1
         const errorMsg = submitErrors.join('; ')
-        gen.setError(errorMsg)
+        // only touch global state when this was the last active round —
+        // other rounds may still be generating
+        if (roundsRef.current === 0) {
+          gen.setError(errorMsg)
+          gen.setProgress(100)
+          gen.setStatus(null)
+          gen.setGenerating(false)
+        }
         toast.addToast({ message: errorMsg, type: 'error' })
         return
       }
@@ -188,19 +231,26 @@ export default function Home() {
           })
           successCount++
         } else {
-          const msg = result.status === 'fulfilled' && result.value?.error
-            ? result.value.error
+          const msg = result.status === 'fulfilled'
+            ? (result.value?.error ?? '已取消')
             : result.status === 'rejected'
               ? result.reason?.message || '请求异常'
               : '生成失败'
           pollErrors.push(msg)
           gen.updateTask(uid, { status: 'failed', errorMessage: msg })
         }
+        gen.setProgress(Math.min(100, Math.round(((i + 1) / apiIds.length) * 100)))
       }
 
-      gen.setCost(totalCost)
-      gen.setProgress(100)
-      gen.setStatus('completed')
+      sessionCostRef.current += totalCost
+      roundsRef.current -= 1
+      const allDone = roundsRef.current === 0
+      if (allDone) {
+        gen.setCost(sessionCostRef.current)
+        gen.setProgress(100)
+        gen.setStatus('completed')
+        gen.setGenerating(false)
+      }
 
       const cleanParams = {
         model: params.model,
@@ -225,7 +275,7 @@ export default function Home() {
       } else {
         const allErrors = [...submitErrors, ...pollErrors]
         const errorMsg = allErrors.filter(Boolean).join('; ')
-        gen.setError(errorMsg || '所有任务均生成失败')
+        if (allDone) gen.setError(errorMsg)
         toast.addToast({ message: '所有任务均生成失败', type: 'error' })
       }
     },
@@ -313,6 +363,7 @@ export default function Home() {
                 <ImageDisplayArea
                   images={gen.images}
                   isGenerating={gen.isGenerating}
+                  progress={gen.progress}
                   error={gen.error}
                   cost={gen.cost}
                   model={lastParams?.model}

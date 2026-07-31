@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useHistoryStore } from '@/stores/history-store'
 import { HistoryEntry } from '@/lib/types'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { SafeImage } from './SafeImage'
 
 interface HistoryBarProps {
   onSelect: (entry: HistoryEntry) => void
@@ -67,9 +68,15 @@ export function HistoryBar({ onSelect, onRemove, selectedId }: HistoryBarProps) 
           )}
         </div>
         {!mounted || (!loaded && entries.length === 0) ? (
-          <p className="text-xs text-muted-foreground text-center py-4">
-            加载中...
-          </p>
+          <div className="flex gap-3 pb-1 overflow-x-auto">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex-shrink-0 w-36">
+                <div className="aspect-square rounded-lg bg-muted animate-pulse mb-1" />
+                <div className="h-3 w-3/4 rounded bg-muted animate-pulse mb-1" />
+                <div className="h-2.5 w-1/2 rounded bg-muted/60 animate-pulse" />
+              </div>
+            ))}
+          </div>
         ) : mounted && entries.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">
             还没有生成记录
@@ -92,7 +99,7 @@ export function HistoryBar({ onSelect, onRemove, selectedId }: HistoryBarProps) 
                     }`}>
                       {entry.localImages[0] || (entry.imageIds && entry.imageIds[0]) ? (
                         <>
-                          <img
+                          <SafeImage
                             src={getThumbUrl(entry)}
                             alt=""
                             className="w-full h-full object-cover transition-transform group-hover:scale-105"

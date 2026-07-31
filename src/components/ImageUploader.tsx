@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { X, Upload } from 'lucide-react'
+import { SafeImage } from './SafeImage'
 
 export interface UploadedImage {
   id: string
@@ -105,7 +106,7 @@ export function ImageUploader({ images, onChange, maxCount = 16 }: ImageUploader
         <div className="flex flex-wrap gap-2">
           {images.map((img) => (
             <div key={img.id} className="relative group w-16 h-16 rounded-md overflow-hidden border">
-              <img
+              <SafeImage
                 src={img.data}
                 alt={img.name}
                 className="w-full h-full object-cover"

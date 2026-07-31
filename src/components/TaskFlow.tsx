@@ -5,6 +5,13 @@ import { Loader2, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGenerationStore } from '@/stores/generation-store'
 
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}分${s.toString().padStart(2, '0')}秒`
+}
+
 export function TaskFlow() {
   const tasks = useGenerationStore((s) => s.tasks)
   const [now, setNow] = useState(() => Date.now())
@@ -58,7 +65,7 @@ export function TaskFlow() {
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <span className="text-[10px] text-destructive/80">失败</span>
                       {task.errorMessage && (
-                        <span className="text-[9px] text-destructive/60 truncate max-w-[200px]">{task.errorMessage}</span>
+                        <span className="text-[9px] text-destructive/60 truncate max-w-[200px]" title={task.errorMessage}>{task.errorMessage}</span>
                       )}
                     </div>
                   ) : isCompleted ? (
@@ -73,9 +80,9 @@ export function TaskFlow() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-primary/70" />
+                      <Clock className="h-3 w-3 text-primary/70 animate-pulse" />
                       <span className="text-[10px] text-primary/70 tabular-nums">
-                        {elapsed ?? 0}s
+                        {elapsed !== null && elapsed !== undefined ? formatElapsed(elapsed) : '0s'}
                       </span>
                     </div>
                   )}

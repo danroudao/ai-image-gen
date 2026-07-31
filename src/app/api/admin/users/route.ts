@@ -8,16 +8,19 @@ export async function GET() {
   const admin = await requireAdmin()
   if (admin.error) return admin.error
 
-  const users = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' },
-  })
+  const [users, imageCounts, quotas] = await Promise.all([
+    prisma.user.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.image.groupBy({ by: ['userId'], _count: { _all: true } }),
+    prisma.quota.findMany(),
+  ])
 
-  const result = await Promise.all(users.map(async (u) => {
-    const [quota, imageCount] = await Promise.all([
-      prisma.quota.findUnique({ where: { userId: u.id } }),
-      prisma.image.count({ where: { userId: u.id } }),
-    ])
-    return { ...u, quota, _count: { images: imageCount } }
+  const imageCountMap = new Map(imageCounts.map((g) => [g.userId, g._count._all]))
+  const quotaMap = new Map(quotas.map((q) => [q.userId, q]))
+
+  const result = users.map((u) => ({
+    ...u,
+    quota: quotaMap.get(u.id) ?? null,
+    _count: { images: imageCountMap.get(u.id) ?? 0 },
   }))
 
   return NextResponse.json({ data: result })

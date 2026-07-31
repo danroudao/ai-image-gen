@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { ArrowLeft, Save, User, Shield, ImageIcon, Activity, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Save, User, Shield, ImageIcon, Activity, BarChart3, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 interface UserSettings {
@@ -15,13 +15,14 @@ interface UserSettings {
 }
 
 export default function SettingsPage() {
-  const { data: session, update } = useSession()
+  const { update } = useSession()
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [name, setName] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/user/settings')
@@ -36,29 +37,36 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setMessage('')
-    const body: Record<string, unknown> = { name }
-    if (currentPassword && newPassword) {
-      body.currentPassword = currentPassword
-      body.newPassword = newPassword
-    }
-    if (!currentPassword && newPassword) {
-      setMessage('请填写当前密码')
-      return
-    }
+    setSaving(true)
+    try {
+      const body: Record<string, unknown> = { name }
+      if (currentPassword && newPassword) {
+        body.currentPassword = currentPassword
+        body.newPassword = newPassword
+      }
+      if (!currentPassword && newPassword) {
+        setMessage('请填写当前密码')
+        return
+      }
 
-    const res = await fetch('/api/user/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setMessage('已保存')
-      setCurrentPassword('')
-      setNewPassword('')
-      update()
-    } else {
-      setMessage(data.error?.message ?? '保存失败')
+      const res = await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage('已保存')
+        setCurrentPassword('')
+        setNewPassword('')
+        update()
+      } else {
+        setMessage(data.error?.message ?? '保存失败')
+      }
+    } catch {
+      setMessage('保存失败')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -144,16 +152,17 @@ export default function SettingsPage() {
         </div>
 
         {message && (
-          <p className="text-sm text-muted-foreground">{message}</p>
+          <p className={`text-sm ${message.includes('已保存') ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>{message}</p>
         )}
 
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-60"
           onClick={handleSave}
         >
-          <Save className="h-4 w-4" />
-          保存
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saving ? '保存中...' : '保存'}
         </button>
       </div>
     </div>

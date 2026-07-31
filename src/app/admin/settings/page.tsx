@@ -4,15 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Save, Settings, HardDrive } from 'lucide-react'
 import Link from 'next/link'
 
-interface Config {
-  defaultMaxTasks: number
-  defaultMonthlyLimit: number
-  maxStorageMB: number
-  allowRegistration: boolean
-}
-
 export default function AdminSettingsPage() {
-  const [config, setConfig] = useState<Config | null>(null)
   const [defaultMaxTasks, setDefaultMaxTasks] = useState(3)
   const [defaultMonthlyLimit, setDefaultMonthlyLimit] = useState(500)
   const [maxStorageMB, setMaxStorageMB] = useState(500)
@@ -22,7 +14,6 @@ export default function AdminSettingsPage() {
     fetch('/api/admin/settings')
       .then((r) => r.json())
       .then((d) => {
-        setConfig(d.data)
         setDefaultMaxTasks(d.data.defaultMaxTasks)
         setDefaultMonthlyLimit(d.data.defaultMonthlyLimit)
         setMaxStorageMB(d.data.maxStorageMB ?? 500)

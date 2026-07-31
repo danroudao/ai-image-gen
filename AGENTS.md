@@ -19,8 +19,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Toast**: lightweight, reused across generate/delete/reuse prompt/add ref
 
 ## Build
-- `npm run build` — passes with 0 errors, 4 lint warnings (img elements)
-- `npm run lint` — 0 errors
+- `npm run build` — passes with 0 errors, 0 lint warnings
+- `npm run lint` — 0 errors, 0 warnings
+
+## Optimizations (v1.1)
+- **Parallel re-submission**: generating again during a running batch no longer aborts it — batches run in parallel and all results accumulate (no wasted upstream tasks)
+- **Task poll idempotency**: completed tasks return cached images, no re-download / double quota billing
+- **Real thumbnails**: 256px WebP lazily generated + disk-cached in `private/thumbs/`
+- **Admin users list**: N+1 → 3 queries; async file reads; parallel image downloads; history clear syncs to server
 
 ## Git
 - remote: `origin` → `git@github.com:danroudao/ai-image-gen.git`

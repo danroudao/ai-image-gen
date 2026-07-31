@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft, Users, ImageIcon, Activity, BarChart3,
-  Clock, DollarSign, AlertTriangle, List,
-  CheckCircle, XCircle, Loader2, Play,
+  Clock, DollarSign, AlertTriangle,
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -29,7 +28,6 @@ interface Stats {
 }
 
 const STATUS_COLORS = ['#22c55e', '#3b82f6', '#eab308', '#ef4444']
-const CHART_COLORS = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444']
 
 export default function AdminPage() {
   const [stats, setStats] = useState<Stats | null>(null)
@@ -41,9 +39,6 @@ export default function AdminPage() {
       .catch(() => {})
   }, [])
 
-  const statusIcon: Record<string, typeof CheckCircle> = {
-    completed: CheckCircle, running: Loader2, queued: Play, failed: XCircle,
-  }
   const statusColor: Record<string, string> = {
     completed: 'text-green-500', running: 'text-blue-500', queued: 'text-yellow-500', failed: 'text-red-500',
   }

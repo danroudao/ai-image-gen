@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const runningTasks = await prisma.generationTask.count({
-      where: { userId: auth.user!.id, status: 'running' },
+      where: { userId: auth.user!.id, status: { in: ['running', 'queued', 'processing'] } },
     })
     if (runningTasks >= quota.maxTasks) {
       return NextResponse.json(

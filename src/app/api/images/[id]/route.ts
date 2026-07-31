@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fs from 'fs'
 import path from 'path'
+import fs from 'fs/promises'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api-utils'
 
@@ -22,13 +22,26 @@ export async function GET(
   }
 
   const filePath = path.join(UPLOAD_DIR, path.basename(image.filePath))
-  if (!fs.existsSync(filePath)) {
+
+  // read the file asynchronously into a typed buffer (non-blocking)
+  let fileHandle: Awaited<ReturnType<typeof fs.open>>
+  try {
+    fileHandle = await fs.open(filePath, 'r')
+  } catch {
     return NextResponse.json({ error: { code: 404, message: '图片文件不存在', type: 'not_found' } }, { status: 404 })
+  }
+
+  let fileBuffer: Uint8Array<ArrayBuffer>
+  try {
+    const stat = await fileHandle.stat()
+    fileBuffer = new Uint8Array(stat.size)
+    await fileHandle.read(fileBuffer, 0, stat.size, 0)
+  } finally {
+    await fileHandle.close()
   }
 
   const ext = path.extname(filePath).toLowerCase()
   const contentType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
-  const fileBuffer = fs.readFileSync(filePath)
 
   return new NextResponse(fileBuffer, {
     headers: {

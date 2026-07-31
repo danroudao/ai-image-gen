@@ -34,11 +34,16 @@ export default function UsersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    await fetch('/api/admin/users', {
+    const res = await fetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, name }),
     })
+    const data = await res.json()
+    if (!res.ok) {
+      alert(data.error?.message ?? '创建失败')
+      return
+    }
     setShowCreate(false)
     setEmail('')
     setPassword('')

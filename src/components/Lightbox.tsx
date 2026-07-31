@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Download, FileText, ImagePlus, Check, Loader2 } from 'lucide-react'
+import { SafeImage } from './SafeImage'
 
 interface LightboxProps {
   images: string[]
@@ -77,7 +78,7 @@ export function Lightbox({ images, currentIndex, prompt, onClose, onPrev, onNext
       )}
 
       <div className="flex flex-col items-center gap-4 max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-        <img
+        <SafeImage
           src={currentUrl}
           alt={`生成图片 ${currentIndex + 1}`}
           className="max-h-[75vh] max-w-[90vw] object-contain rounded-lg"

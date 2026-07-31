@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { ImageDown, AlertCircle, FileText, Check, Loader2, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Lightbox } from './Lightbox'
+import { SafeImage } from './SafeImage'
 
 function copyToClipboard(text: string) {
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -23,6 +24,7 @@ function copyToClipboard(text: string) {
 interface ImageDisplayAreaProps {
   images: string[]
   isGenerating: boolean
+  progress?: number | null
   error: string | null
   cost: number | null
   model?: string
@@ -37,6 +39,7 @@ interface ImageDisplayAreaProps {
 export function ImageDisplayArea({
   images,
   isGenerating,
+  progress,
   error,
   cost,
   model,
@@ -61,6 +64,20 @@ export function ImageDisplayArea({
       const singleCol = images.length === 1
       return (
         <div className="space-y-3 overflow-y-auto min-h-0 max-h-full">
+          {isGenerating && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+              <span className="text-xs text-muted-foreground shrink-0">
+                正在生成 {progress ?? 0}% · 已有 {images.length} 张
+              </span>
+              <div className="flex-1 h-1.5 min-w-0 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${Math.max(4, progress ?? 0)}%` }}
+                />
+              </div>
+            </div>
+          )}
           <div
             className={`grid ${singleCol ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}
             style={singleCol ? { maxWidth: '70%', margin: '0 auto' } : undefined}
@@ -71,7 +88,7 @@ export function ImageDisplayArea({
                 className="relative group rounded-lg overflow-hidden border bg-muted cursor-pointer"
                 onClick={() => setLightboxIndex(idx)}
               >
-                <img
+                <SafeImage
                   src={url}
                   alt={`生成图片 ${idx + 1}`}
                   className="w-full object-contain max-h-[45vh] transition-transform duration-300 group-hover:scale-[1.02] bg-muted"
@@ -156,9 +173,23 @@ export function ImageDisplayArea({
 
     if (isGenerating) {
       return (
-        <div className="flex flex-col items-center justify-center h-full gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">正在生成...</p>
+        <div className="flex flex-col items-center justify-center h-full gap-4">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
+            <Loader2 className="relative h-10 w-10 animate-spin text-primary" />
+          </div>
+          <p className="text-sm text-muted-foreground">正在生成图片，请稍候...</p>
+          <div className="w-full max-w-xs space-y-1.5">
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${Math.max(4, progress ?? 0)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground text-center tabular-nums">
+              进度 {progress ?? 0}%
+            </p>
+          </div>
         </div>
       )
     }

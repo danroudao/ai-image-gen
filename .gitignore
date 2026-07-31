@@ -40,6 +40,7 @@ yarn-error.log*
 public/generated/
 !public/generated/.gitkeep
 private/uploads/
+private/thumbs/
 
 # typescript
 *.tsbuildinfo

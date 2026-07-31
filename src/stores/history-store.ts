@@ -47,6 +47,14 @@ async function removeEntryFromApi(id: string) {
   }
 }
 
+async function clearHistoryFromApi() {
+  try {
+    await fetch('/api/history', { method: 'DELETE' })
+  } catch (e) {
+    console.error('clearHistoryFromApi error:', e)
+  }
+}
+
 interface HistoryStore {
   entries: HistoryEntry[]
   loaded: boolean
@@ -76,6 +84,7 @@ export const useHistoryStore = create<HistoryStore>((set) => ({
     }))
   },
   clearAll: () => {
+    clearHistoryFromApi()
     set({ entries: [] })
   },
 }))
